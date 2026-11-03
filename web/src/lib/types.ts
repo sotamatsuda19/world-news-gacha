@@ -1,0 +1,52 @@
+// Shared shapes between the collector script, the API routes and the UI.
+
+export type Outlet = {
+  id: string;
+  name: string;
+  country: string; // English country name
+  countryCode: string; // ISO 3166-1 alpha-2, lowercase (used for flags)
+  lang: string; // BCP 47 language of the outlet's headlines
+  baseCity: string;
+  baseLat: number;
+  baseLng: number;
+  feeds: string[];
+};
+
+export type Place = {
+  city: string; // English name, e.g. "Naha"
+  region?: string; // state / prefecture, English
+  names?: Record<string, string>; // city name per UI language, e.g. { ja: "那覇" }
+  lat: number;
+  lng: number;
+  source: "ai" | "outlet"; // "outlet" = AI could not tell, fell back to the outlet's base
+};
+
+export type ArticleImage = {
+  url: string;
+  source: "ogp" | "fallback";
+  credit?: string; // shown for fallback (free-license) images
+  creditUrl?: string;
+};
+
+export type Article = {
+  id: string;
+  outletId: string;
+  outletName: string;
+  country: string;
+  countryCode: string;
+  lang: string;
+  title: string;
+  description: string;
+  url: string;
+  publishedAt: string | null;
+  image: ArticleImage | null; // OGP image of the article
+  fallbackImage: ArticleImage | null; // free-license photo of the place
+  place: Place;
+  score: number; // 1-5, "how interesting is this to someone abroad"
+};
+
+// What /api/draw sends to the browser.
+export type DrawResult = Pick<
+  Article,
+  "id" | "outletName" | "country" | "countryCode" | "lang" | "title" | "url" | "image" | "fallbackImage" | "place"
+>;

@@ -1,0 +1,90 @@
+import type { Outlet } from "./types";
+
+// Hand-picked outlets. Free to read, with working RSS (checked 2026-11-03).
+// To add a country, add outlets here and re-run `npm run collect`.
+export const OUTLETS: Outlet[] = [
+  {
+    id: "nhk",
+    name: "NHK",
+    country: "Japan",
+    countryCode: "jp",
+    lang: "ja",
+    baseCity: "Tokyo",
+    baseLat: 35.6762,
+    baseLng: 139.6503,
+    feeds: [
+      "https://news.web.nhk/n-data/conf/na/rss/cat0.xml",
+      "https://news.web.nhk/n-data/conf/na/rss/cat1.xml",
+      "https://news.web.nhk/n-data/conf/na/rss/cat3.xml",
+    ],
+  },
+  {
+    id: "okinawatimes",
+    name: "沖縄タイムス",
+    country: "Japan",
+    countryCode: "jp",
+    lang: "ja",
+    baseCity: "Naha",
+    baseLat: 26.2124,
+    baseLng: 127.6809,
+    feeds: ["https://www.okinawatimes.co.jp/list/feed/rss"],
+  },
+  {
+    id: "tbsnewsdig",
+    name: "TBS NEWS DIG",
+    country: "Japan",
+    countryCode: "jp",
+    lang: "ja",
+    baseCity: "Tokyo",
+    baseLat: 35.6762,
+    baseLng: 139.6503,
+    feeds: ["https://newsdig.tbs.co.jp/list/feed/rss"],
+  },
+  {
+    id: "texastribune",
+    name: "The Texas Tribune",
+    country: "United States",
+    countryCode: "us",
+    lang: "en",
+    baseCity: "Austin",
+    baseLat: 30.2672,
+    baseLng: -97.7431,
+    feeds: ["https://feeds.texastribune.org/feeds/main/"],
+  },
+  {
+    id: "kqed",
+    name: "KQED",
+    country: "United States",
+    countryCode: "us",
+    lang: "en",
+    baseCity: "San Francisco",
+    baseLat: 37.7749,
+    baseLng: -122.4194,
+    feeds: ["https://ww2.kqed.org/news/feed/"],
+  },
+  {
+    id: "amarujala",
+    name: "अमर उजाला (Amar Ujala)",
+    country: "India",
+    countryCode: "in",
+    lang: "hi",
+    baseCity: "Noida",
+    baseLat: 28.5355,
+    baseLng: 77.391,
+    feeds: ["https://www.amarujala.com/rss/breaking-news.xml"],
+  },
+  {
+    // Replaced The Hindu (2026-11-04): every Hindu article page declares isAccessibleForFree=false.
+    id: "hindustantimes",
+    name: "Hindustan Times",
+    country: "India",
+    countryCode: "in",
+    lang: "en",
+    baseCity: "New Delhi",
+    baseLat: 28.6139,
+    baseLng: 77.209,
+    feeds: ["https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml"],
+  },
+];
+
+export const outletById = (id: string) => OUTLETS.find((o) => o.id === id);
