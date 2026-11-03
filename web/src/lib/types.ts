@@ -24,8 +24,12 @@ export type Place = {
 export type ArticleImage = {
   url: string;
   source: "ogp" | "fallback";
-  credit?: string; // shown for fallback (free-license) images
-  creditUrl?: string;
+  // Attribution for fallback (free-license) photos, e.g. "Jane Doe / CC BY-SA 4.0"
+  credit?: string;
+  creditUrl?: string; // the file's page on Wikimedia Commons
+  author?: string;
+  license?: string;
+  licenseUrl?: string;
 };
 
 export type Article = {

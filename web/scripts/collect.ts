@@ -125,6 +125,21 @@ async function fetchPage(url: string): Promise<PageInfo | null> {
   }
 }
 
+// Requests the image the way the card will (no Referer) and checks it is really an image.
+// Only the response headers are read; the body is discarded.
+async function imageReachable(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(url, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(10000) });
+    // Some CDNs send a doubled header such as "application/octet-stream, image/webp";
+    // browsers sniff those fine, so look for "image/" anywhere in it.
+    const ok = res.ok && (res.headers.get("content-type") ?? "").includes("image/");
+    await res.body?.cancel();
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out: R[] = new Array(items.length);
   let next = 0;
@@ -189,7 +204,54 @@ async function judge(client: Anthropic, outlet: Outlet, items: RawItem[]) {
 
 // ---------- Fallback photo (free license) ----------
 
+const WIKI_UA = { "User-Agent": "NewsGardenPrototype/0.1 (local prototype)" };
+// Licenses we accept for the fallback photo. Anything else (including Wikipedia's
+// local "fair use" uploads, which never live under /wikipedia/commons/) is skipped.
+const FREE_LICENSE = /^(cc0|cc by(-sa)? [\d.]+|public domain|pd\b|attribution)/i;
+
 const photoCache = new Map<string, ArticleImage | null>();
+
+const stripTags = (html: string) =>
+  stripHtml(html)
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&lt;|&gt;/g, "")
+    .trim();
+
+// Looks up a Commons file's license and author. Returns null unless it's freely licensed.
+async function commonsImage(originalUrl: string): Promise<ArticleImage | null> {
+  const path = new URL(originalUrl).pathname;
+  if (!path.startsWith("/wikipedia/commons/")) return null;
+  // Original: /wikipedia/commons/a/a3/Name.jpg
+  // Thumbnail: /wikipedia/commons/thumb/a/a3/Name.jpg/3840px-Name.jpg
+  const parts = path.split("/");
+  const thumb = parts.indexOf("thumb");
+  const fileName = decodeURIComponent(thumb >= 0 ? parts[thumb + 3] : parts[parts.length - 1]);
+  const api =
+    "https://commons.wikimedia.org/w/api.php?action=query&format=json&prop=imageinfo" +
+    `&iiprop=extmetadata|url&iiurlwidth=1280&titles=${encodeURIComponent(`File:${fileName}`)}`;
+  const res = await fetch(api, { headers: WIKI_UA, signal: AbortSignal.timeout(10000) });
+  if (!res.ok) return null;
+  const data = (await res.json()) as {
+    query?: { pages?: Record<string, { imageinfo?: { thumburl?: string; url: string; descriptionurl?: string; extmetadata?: Record<string, { value: string }> }[] }> };
+  };
+  const info = Object.values(data.query?.pages ?? {})[0]?.imageinfo?.[0];
+  const meta = info?.extmetadata ?? {};
+  const license = meta.LicenseShortName?.value ?? "";
+  if (!info || meta.NonFree?.value === "true" || !FREE_LICENSE.test(license)) return null;
+  const artist = stripTags(meta.Artist?.value ?? "")
+    // Commons' wording when the author field is missing: "No machine-readable author provided. X assumed (based on ...)"
+    .replace(/^No machine-readable author provided\.\s*(.+?)\s+assumed.*$/i, "$1");
+  const author = artist.slice(0, 60) || "Wikimedia Commons";
+  return {
+    url: info.thumburl ?? info.url,
+    source: "fallback",
+    author,
+    license,
+    licenseUrl: meta.LicenseUrl?.value,
+    credit: `${author} / ${license}`,
+    creditUrl: info.descriptionurl ?? `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(fileName)}`,
+  };
+}
 
 async function placePhoto(place: Place, country: string): Promise<ArticleImage | null> {
   const key = `${place.city}|${place.region ?? ""}|${country}`;
@@ -199,25 +261,14 @@ async function placePhoto(place: Place, country: string): Promise<ArticleImage |
   for (const title of titles) {
     try {
       const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`, {
-        headers: { "User-Agent": "NewsGardenPrototype/0.1 (local prototype)" },
+        headers: WIKI_UA,
         signal: AbortSignal.timeout(10000),
       });
       if (!res.ok) continue;
-      const page = (await res.json()) as {
-        type?: string;
-        thumbnail?: { source: string };
-        originalimage?: { source: string; width: number };
-        content_urls?: { desktop?: { page?: string } };
-      };
-      if (page.type === "disambiguation") continue;
-      // The summary thumbnail is ~330px wide; ask Wikimedia for a 1280px rendition instead.
-      const src =
-        page.originalimage && page.originalimage.width <= 1600
-          ? page.originalimage.source
-          : page.thumbnail?.source.replace(/\/\d+px-/, "/1280px-");
-      if (!src) continue;
-      found = { url: src, source: "fallback", credit: "Wikimedia Commons", creditUrl: page.content_urls?.desktop?.page };
-      break;
+      const page = (await res.json()) as { type?: string; originalimage?: { source: string } };
+      if (page.type === "disambiguation" || !page.originalimage) continue;
+      found = await commonsImage(page.originalimage.source);
+      if (found) break;
     } catch {
       // try the next title
     }
@@ -277,6 +328,13 @@ async function main() {
     const isGeneric = (u: string) =>
       (imageUse.get(u) ?? 0) >= 3 || /(logo|generic|default|placeholder|noimage)[^/]*$/i.test(new URL(u).pathname);
 
+    const candidates = open.map(({ it, page }) => {
+      const u = page?.ogImage ?? it.feedImage;
+      return u && !isGeneric(u) ? u : null;
+    });
+    const reachable = await mapLimit(candidates, 6, (u) => (u ? imageReachable(u) : Promise.resolve(false)));
+    console.log(`  usable photos: ${reachable.filter(Boolean).length}/${open.length}`);
+
     let kept = 0;
     for (const [i, { it, page }] of open.entries()) {
       const j = judgements?.find((x) => x.index === i);
@@ -294,8 +352,7 @@ async function main() {
             }
           : { city: outlet.baseCity, lat: outlet.baseLat, lng: outlet.baseLng, source: "outlet" };
 
-      const candidate = page?.ogImage ?? it.feedImage;
-      const ogp = candidate && !isGeneric(candidate) ? candidate : null;
+      const ogp = reachable[i] ? candidates[i] : null;
       articles.push({
         id: idFor(it.url),
         outletId: outlet.id,

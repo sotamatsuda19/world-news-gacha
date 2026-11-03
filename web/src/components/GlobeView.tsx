@@ -9,6 +9,10 @@ export type GlobeHandle = {
   spinTo: (lat: number, lng: number, durationMs: number) => Promise<void>;
   // Jump to the end of the current spin.
   skip: () => void;
+  // After landing: move in closer for the "it's here!" moment. Resolves when done.
+  zoomIn: (durationMs: number) => Promise<void>;
+  // Where (lat, lng) currently is on screen, in CSS pixels.
+  screenPoint: (lat: number, lng: number) => { x: number; y: number } | null;
   showMarker: (lat: number, lng: number) => void;
   clearMarker: () => void;
   // Back to the slow idle rotation.
@@ -19,7 +23,7 @@ export type GlobeHandle = {
 // tall phone screen the globe would overflow sideways; pull back in portrait.
 function altitudes() {
   const portrait = window.innerWidth / window.innerHeight < 0.8;
-  return portrait ? { idle: 3.9, landed: 2.9 } : { idle: 2.4, landed: 1.7 };
+  return portrait ? { idle: 3.9, landed: 2.9, close: 1.5 } : { idle: 2.4, landed: 1.7, close: 0.9 };
 }
 const EXTRA_TURNS = 2; // full revolutions before settling
 const SKIP_MS = 450;
@@ -54,10 +58,15 @@ function makeStars(count: number) {
   return new THREE.Points(geometry, material);
 }
 
-const GlobeView = forwardRef<GlobeHandle>(function GlobeView(_props, ref) {
+const GlobeView = forwardRef<GlobeHandle, { onReady?: () => void }>(function GlobeView({ onReady }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const globeRef = useRef<GlobeInstance | null>(null);
   const spinRef = useRef<{ raf: number; finish: () => void } | null>(null);
+  // Read through a ref so the globe isn't rebuilt when the parent re-renders.
+  const onReadyRef = useRef(onReady);
+  useEffect(() => {
+    onReadyRef.current = onReady;
+  }, [onReady]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -76,10 +85,13 @@ const GlobeView = forwardRef<GlobeHandle>(function GlobeView(_props, ref) {
         .showAtmosphere(true)
         .atmosphereColor("#7fb4ff")
         .atmosphereAltitude(0.18)
-        .ringColor(() => (t: number) => `rgba(255, 214, 140, ${1 - t})`)
-        .ringMaxRadius(4)
-        .ringPropagationSpeed(2.2)
-        .ringRepeatPeriod(900)
+        .ringColor(() => (t: number) => `rgba(255, 226, 160, ${Math.pow(1 - t, 1.5)})`)
+        .ringMaxRadius(7)
+        .ringPropagationSpeed(3.5)
+        .ringRepeatPeriod(700)
+        .ringAltitude(0.004)
+        // Fires once the earth texture has loaded: lifts the loading screen.
+        .onGlobeReady(() => onReadyRef.current?.())
         .width(el.clientWidth)
         .height(el.clientHeight);
 
@@ -156,6 +168,25 @@ const GlobeView = forwardRef<GlobeHandle>(function GlobeView(_props, ref) {
           },
         };
       });
+    },
+    zoomIn(durationMs) {
+      const globe = globeRef.current;
+      if (!globe) return Promise.resolve();
+      const from = globe.pointOfView();
+      const to = altitudes().close;
+      const start = performance.now();
+      return new Promise<void>((resolve) => {
+        const frame = (now: number) => {
+          const t = Math.min(1, (now - start) / durationMs);
+          globe.pointOfView({ ...from, altitude: from.altitude + (to - from.altitude) * easeOut(t) }, 0);
+          if (t < 1) requestAnimationFrame(frame);
+          else resolve();
+        };
+        requestAnimationFrame(frame);
+      });
+    },
+    screenPoint(lat, lng) {
+      return globeRef.current?.getScreenCoords(lat, lng) ?? null;
     },
     skip() {
       spinRef.current?.finish();

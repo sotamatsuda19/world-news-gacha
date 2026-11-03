@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { DrawResult } from "@/lib/types";
+import type { ArticleImage, DrawResult } from "@/lib/types";
 import { countryName, type UiStrings } from "@/lib/i18n";
 import Typewriter from "./Typewriter";
 
@@ -12,6 +12,7 @@ const WIDE_SCRIPT = /^(ja|zh|ko)/;
 // types itself out underneath.
 export default function LetterCard({
   article,
+  initialImage,
   summary,
   summaryDone,
   uiLang,
@@ -19,15 +20,15 @@ export default function LetterCard({
   onClose,
 }: {
   article: DrawResult;
+  initialImage: ArticleImage | null; // already preloaded while the globe was spinning
   summary: string;
   summaryDone: boolean;
   uiLang: string;
   t: UiStrings;
   onClose: () => void;
 }) {
-  // If the outlet blocks hotlinking or the OGP URL is dead, switch to the
-  // free-license city photo picked by the collector.
-  const [image, setImage] = useState(article.image ?? article.fallbackImage);
+  // Safety net: if the photo still fails here, drop to the place photo, then to none.
+  const [image, setImage] = useState(initialImage);
   const city = article.place.names?.[uiLang] ?? article.place.city;
 
   return (
@@ -38,22 +39,23 @@ export default function LetterCard({
         </button>
 
         {image && (
-          <a href={article.url} target="_blank" rel="noopener noreferrer" className="card-photo rise" style={{ animationDelay: "0ms" }}>
-            {/* Plain <img>: the browser loads it straight from the publisher, never via our server. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={image.url}
-              alt=""
-              referrerPolicy="no-referrer"
-              loading="eager"
-              onError={() => setImage(image.source === "ogp" ? article.fallbackImage : null)}
-            />
+          <div className="card-photo rise" style={{ animationDelay: "0ms" }}>
+            <a href={article.url} target="_blank" rel="noopener noreferrer" tabIndex={-1}>
+              {/* Plain <img>: the browser loads it straight from the publisher, never via our server. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={image.url}
+                alt=""
+                referrerPolicy="no-referrer"
+                onError={() => setImage(image.source === "ogp" ? article.fallbackImage : null)}
+              />
+            </a>
             {image.source === "fallback" && image.credit && (
-              <span className="photo-credit">
+              <a className="photo-credit" href={image.creditUrl} target="_blank" rel="noopener noreferrer">
                 {t.photo}: {image.credit}
-              </span>
+              </a>
             )}
-          </a>
+          </div>
         )}
 
         <div className="card-body">
