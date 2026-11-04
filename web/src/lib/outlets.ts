@@ -1,11 +1,25 @@
 import { z } from "zod";
 import { COUNTRIES, insideCountry, isCountryCode } from "./countries";
+import { EAST_ASIA } from "./outlet-lists/east-asia";
+import { SOUTHEAST_ASIA } from "./outlet-lists/southeast-asia";
+import { SOUTH_ASIA_OCEANIA } from "./outlet-lists/south-asia-oceania";
+import { MIDDLE_EAST } from "./outlet-lists/middle-east";
+import { AFRICA } from "./outlet-lists/africa";
+import { WESTERN_EUROPE } from "./outlet-lists/western-europe";
+import { EASTERN_EUROPE } from "./outlet-lists/eastern-europe";
+import { NORTH_AMERICA } from "./outlet-lists/north-america";
+import { SOUTH_AMERICA } from "./outlet-lists/south-america";
 
 // The outlet list. Everything outlet-specific lives here as data, so adding an
 // outlet never requires touching the collector's code.
 //
 // Selection policy: 2-4 free outlets per country, spread across regions.
 // Check a candidate first with `npm run check-outlet -- <id>` (works for enabled: false too).
+// The entries themselves are in outlet-lists/<region>.ts.
+
+const noStickyFlags = z.instanceof(RegExp).refine((r) => !r.global && !r.sticky, {
+  message: 'remove the "g" / "y" flag (this pattern is used with .test())',
+});
 
 const OutletSchema = z
   .object({
@@ -22,9 +36,14 @@ const OutletSchema = z
     // Outlet-specific clean-up applied to each feed item.
     rules: z
       .object({
-        dropTitle: z.instanceof(RegExp).optional(), // skip items whose title matches (e.g. members-only marker)
+        // dropTitle / dropUrl are used with .test(): a "g" or "y" flag would make the RegExp
+        // remember where it stopped and give alternating answers for the same text.
+        dropTitle: noStickyFlags.optional(), // skip items whose title matches (e.g. members-only marker)
         stripTitle: z.instanceof(RegExp).optional(), // remove this part of the title (e.g. " - Site name")
-        dropUrl: z.instanceof(RegExp).optional(), // skip items whose URL matches (e.g. live blogs)
+        dropUrl: noStickyFlags.optional(), // skip items whose URL matches (e.g. live blogs)
+        // For sites without og:image: the lead photo is the first <img> after this text in
+        // the article page (e.g. the class name of the article body).
+        photoAfter: z.string().min(1).optional(),
       })
       .default({}),
   })
@@ -36,91 +55,19 @@ const OutletSchema = z
 
 export type Outlet = z.output<typeof OutletSchema>;
 
-const LIST: z.input<typeof OutletSchema>[] = [
-  // ---------- Japan ----------
-  {
-    id: "nhk",
-    name: "NHK",
-    countryCode: "jp",
-    lang: "ja",
-    baseCity: "Tokyo",
-    baseLat: 35.6762,
-    baseLng: 139.6503,
-    feeds: [
-      "https://news.web.nhk/n-data/conf/na/rss/cat0.xml",
-      "https://news.web.nhk/n-data/conf/na/rss/cat1.xml",
-      "https://news.web.nhk/n-data/conf/na/rss/cat3.xml",
-    ],
-  },
-  {
-    id: "okinawatimes",
-    name: "沖縄タイムス",
-    countryCode: "jp",
-    lang: "ja",
-    baseCity: "Naha",
-    baseLat: 26.2124,
-    baseLng: 127.6809,
-    feeds: ["https://www.okinawatimes.co.jp/list/feed/rss"],
-    rules: {
-      // "... - 沖縄タイムス＋プラス　プレミアム" marks members-only articles.
-      dropTitle: /プレミアム\s*$/,
-      stripTitle: /\s*-\s*沖縄タイムス＋プラス.*$/,
-    },
-  },
-  {
-    id: "tbsnewsdig",
-    name: "TBS NEWS DIG",
-    countryCode: "jp",
-    lang: "ja",
-    baseCity: "Tokyo",
-    baseLat: 35.6762,
-    baseLng: 139.6503,
-    feeds: ["https://newsdig.tbs.co.jp/list/feed/rss"],
-  },
-  // ---------- United States ----------
-  {
-    id: "texastribune",
-    name: "The Texas Tribune",
-    countryCode: "us",
-    lang: "en",
-    baseCity: "Austin",
-    baseLat: 30.2672,
-    baseLng: -97.7431,
-    feeds: ["https://feeds.texastribune.org/feeds/main/"],
-  },
-  {
-    id: "kqed",
-    name: "KQED",
-    countryCode: "us",
-    lang: "en",
-    baseCity: "San Francisco",
-    baseLat: 37.7749,
-    baseLng: -122.4194,
-    feeds: ["https://ww2.kqed.org/news/feed/"],
-  },
-  // ---------- India ----------
-  {
-    id: "amarujala",
-    name: "अमर उजाला (Amar Ujala)",
-    countryCode: "in",
-    lang: "hi",
-    baseCity: "Noida",
-    baseLat: 28.5355,
-    baseLng: 77.391,
-    feeds: ["https://www.amarujala.com/rss/breaking-news.xml"],
-    rules: { dropUrl: /\/live\// }, // live blogs make poor letters
-  },
-  {
-    // Replaced The Hindu (2026-11-04): every Hindu article page declares isAccessibleForFree=false.
-    id: "hindustantimes",
-    name: "Hindustan Times",
-    countryCode: "in",
-    lang: "en",
-    baseCity: "New Delhi",
-    baseLat: 28.6139,
-    baseLng: 77.209,
-    feeds: ["https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml"],
-  },
+export type OutletInput = z.input<typeof OutletSchema>;
+
+// The list itself lives in outlet-lists/, one file per region.
+const LIST: OutletInput[] = [
+  ...EAST_ASIA,
+  ...SOUTHEAST_ASIA,
+  ...SOUTH_ASIA_OCEANIA,
+  ...MIDDLE_EAST,
+  ...AFRICA,
+  ...WESTERN_EUROPE,
+  ...EASTERN_EUROPE,
+  ...NORTH_AMERICA,
+  ...SOUTH_AMERICA,
 ];
 
 // Validated once at startup: a typo stops the collector and the dev server with

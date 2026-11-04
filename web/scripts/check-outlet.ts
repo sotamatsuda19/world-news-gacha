@@ -48,6 +48,7 @@ async function main() {
 
   const useAi = !args.includes("--no-ai") && !!process.env.ANTHROPIC_API_KEY;
   console.log(`Checking ${outlet.name} (${outlet.country})${useAi ? "" : " — without AI scoring"} ...\n`);
+  // processOutlet checks robots.txt itself (feed site first, then the articles' sites).
   const { articles, report: r } = await processOutlet(outlet, useAi ? new Anthropic() : null);
 
   console.log(`feed items          ${r.feedItems}${r.ok ? "" : "   ← no feed could be read"}`);
@@ -58,7 +59,17 @@ async function main() {
   console.log(`  with own photo    ${r.photos}`);
   console.log(`  place from AI     ${r.placeFromAi}${r.placeRejected ? `   (rejected ${r.placeRejected}: outside the country)` : ""}`);
   console.log(`time                ${(r.ms / 1000).toFixed(1)}s`);
-  if (r.errors.length) console.log(`\nproblems:\n${r.errors.map((e) => `  ! ${e}`).join("\n")}`);
+  const otherErrors = r.errors.filter((e) => !e.startsWith("skipped by robots.txt"));
+  if (otherErrors.length) console.log(`\nproblems:\n${otherErrors.map((e) => `  ! ${e}`).join("\n")}`);
+  if (r.robots === "blocked") {
+    console.log(`\nrobots.txt: NOT USABLE\n${r.robotsReasons.map((w) => `  ✖ ${w}`).join("\n")}`);
+    console.log("  → this site turns away Anthropic's crawlers or all bots; don't add it (decisions.md).");
+  } else if (r.robots === "unknown") {
+    console.log(`\nrobots.txt: UNKNOWN\n${r.robotsReasons.map((w) => `  ? ${w}`).join("\n")}`);
+    console.log("  → couldn't confirm the site allows us; don't add it until it can be read.");
+  } else {
+    console.log("\nrobots.txt: ok (feed site and article sites)");
+  }
 
   console.log(`\nexamples:`);
   for (const a of articles.slice(0, 5)) {

@@ -14,6 +14,7 @@ import { z } from "zod";
 import { insideCountry, type CountryCode } from "../../src/lib/countries";
 import type { Outlet } from "../../src/lib/outlets";
 import type { Article, ArticleImage, Place } from "../../src/lib/types";
+import { checkRobots } from "./robots";
 
 const MODEL = "claude-haiku-5-5";
 const MAX_AGE_HOURS = 48;
@@ -43,6 +44,10 @@ export type OutletReport = {
   placeRejected: number; // AI coordinates outside the country: fell back to the outlet base
   photos: number; // articles with a usable OGP photo
   kept: number;
+  // robots.txt of the feed's site and the articles' sites. Anything but "ok" skips the outlet
+  // for this run, before its pages are fetched (decisions.md, 2026-11-04).
+  robots: "ok" | "blocked" | "unknown";
+  robotsReasons: string[];
   errors: string[];
   ms: number;
 };
@@ -61,15 +66,55 @@ const text = (v: unknown): string => {
 
 const asArray = <T>(x: T | T[] | undefined): T[] => (x == null ? [] : Array.isArray(x) ? x : [x]);
 
-const stripHtml = (s: string) =>
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
+  lsquo: "\u2018", rsquo: "\u2019", ldquo: "\u201c", rdquo: "\u201d",
+  ndash: "\u2013", mdash: "\u2014", hellip: "\u2026",
+};
+
+const decodeEntities = (s: string) =>
   s
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&#039;|&rsquo;/g, "'")
-    .replace(/\s+/g, " ")
-    .trim();
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&([a-z]+);/gi, (m, name) => NAMED_ENTITIES[name.toLowerCase()] ?? m);
+
+// Removes tags and decodes character references: named ones (&amp;, &rsquo;),
+// decimal (&#8217;) and hex (&#x2019;). WordPress feeds use the numeric forms a lot.
+// Some feeds escape twice ("&amp;#8217;"), so decode a second time if anything is left.
+export const stripHtml = (s: string) => {
+  let out = decodeEntities(s.replace(/<[^>]*>/g, " "));
+  if (/&(#\d+|#x[0-9a-f]+|[a-z]+);/i.test(out)) out = decodeEntities(out);
+  return out.replace(/\s+/g, " ").trim();
+};
+
+// fetch(), but when a site says "too many requests" (429) or "try later" (503), wait and
+// try once more. Honors a Retry-After of up to 10 seconds; otherwise waits 2 seconds.
+async function politeFetch(url: string, init: RequestInit): Promise<Response> {
+  const res = await fetch(url, init);
+  if (res.status !== 429 && res.status !== 503) return res;
+  await res.body?.cancel();
+  const retryAfter = Number(res.headers.get("retry-after"));
+  const waitMs = retryAfter > 0 && retryAfter <= 10 ? retryAfter * 1000 : 2000;
+  await new Promise((r) => setTimeout(r, waitMs));
+  return fetch(url, { ...init, signal: AbortSignal.timeout(15000) });
+}
+
+// Decodes a response using the charset it declares (HTTP header, XML declaration or
+// <meta charset>), so feeds in EUC-KR, GBK, Shift_JIS, Windows-1251 etc. aren't garbled.
+async function readText(res: Response): Promise<string> {
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  const head = new TextDecoder("latin1").decode(bytes.slice(0, 2048));
+  const declared =
+    /charset=["']?([\w-]+)/i.exec(res.headers.get("content-type") ?? "")?.[1] ??
+    /<\?xml[^>]*encoding=["']([\w-]+)["']/i.exec(head)?.[1] ??
+    /<meta[^>]+charset=["']?([\w-]+)/i.exec(head)?.[1] ??
+    "utf-8";
+  try {
+    return new TextDecoder(declared.toLowerCase()).decode(bytes);
+  } catch {
+    return new TextDecoder("utf-8").decode(bytes); // unknown label: fall back to UTF-8
+  }
+}
 
 const isoDate = (s: string) => {
   const d = new Date(s);
@@ -82,25 +127,34 @@ function itemImage(item: Record<string, unknown>): string | null {
   return first && typeof first === "object" ? ((first as Record<string, string>)["@_url"] ?? null) : null;
 }
 
+// Looks up an XML child by its local name, whatever namespace prefix the site chose:
+// "news:title", "n:title" and plain "title" all match "title". (In XML the prefix is
+// just a nickname declared at the top of the file; the meaning comes from the URI.)
+export function byLocalName(node: unknown, localName: string): unknown {
+  if (!node || typeof node !== "object") return undefined;
+  const key = Object.keys(node).find((k) => k === localName || k.endsWith(`:${localName}`));
+  return key ? (node as Record<string, unknown>)[key] : undefined;
+}
+
 // Reads RSS 2.0, RDF, Atom, or a Google-News sitemap (<urlset> with <news:news>).
-async function fetchFeed(feedUrl: string): Promise<RawItem[]> {
-  const res = await fetch(feedUrl, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(15000) });
+export async function fetchFeed(feedUrl: string): Promise<RawItem[]> {
+  const res = await politeFetch(feedUrl, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(15000) });
   if (!res.ok) throw new Error(`${feedUrl}: HTTP ${res.status}`);
-  const doc = xml.parse(await res.text());
+  const doc = xml.parse(await readText(res));
 
   if (doc?.urlset) {
     return asArray<Record<string, unknown>>(doc.urlset.url).flatMap((entry) => {
-      const news = entry["news:news"] as Record<string, unknown> | undefined;
-      const title = stripHtml(text(news?.["news:title"]));
+      const news = byLocalName(entry, "news") as Record<string, unknown> | undefined;
+      const title = stripHtml(text(byLocalName(news, "title")));
       if (!title) return []; // not a news entry
-      const image = entry["image:image"] as Record<string, unknown> | undefined;
+      const image = byLocalName(entry, "image") as Record<string, unknown> | undefined;
       return [
         {
           title,
           description: "", // sitemaps have none; filled from the article page's og:description
           url: text(entry.loc).trim(),
-          publishedAt: isoDate(text(news?.["news:publication_date"]) || text(entry.lastmod)),
-          feedImage: text(image?.["image:loc"]) || null,
+          publishedAt: isoDate(text(byLocalName(news, "publication_date")) || text(entry.lastmod)),
+          feedImage: text(byLocalName(image, "loc")) || null,
         },
       ];
     });
@@ -129,9 +183,22 @@ async function fetchFeed(feedUrl: string): Promise<RawItem[]> {
   });
 }
 
+// Removes tracking parameters (utm_source=rss etc.) so the same article always has the
+// same URL — article ids are made from the URL, and summaries are cached by id.
+export function cleanUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    for (const key of [...u.searchParams.keys()]) if (/^utm_/i.test(key)) u.searchParams.delete(key);
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
 // The outlet's own rules from outlets.ts.
 export function applyRules(outlet: Outlet, item: RawItem): RawItem | null {
   if (!item.title || !item.url) return null;
+  item = { ...item, url: cleanUrl(item.url) };
   const { dropTitle, stripTitle, dropUrl } = outlet.rules;
   if (dropTitle?.test(item.title) || dropUrl?.test(item.url)) return null;
   return stripTitle ? { ...item, title: item.title.replace(stripTitle, "").trim() } : item;
@@ -150,17 +217,88 @@ function meta(html: string, prop: string): string | null {
   return m ? (m[1] ?? m[2]).replace(/&amp;/g, "&") : null;
 }
 
-async function fetchPage(url: string): Promise<PageInfo | null> {
+// Finds the article's lead photo: og:image / twitter:image first; if a site leaves those
+// empty (some WordPress sites do), the JSON-LD "image", then the WordPress featured image
+// (<img class="... wp-post-image ...">). Relative URLs are resolved against the page.
+export function pageImage(html: string, pageUrl: string, photoAfter?: string): string | null {
+  const absolute = (u: string | null | undefined) => {
+    if (!u || !u.trim()) return null;
+    try {
+      return new URL(u.replace(/&amp;/g, "&").trim(), pageUrl).toString();
+    } catch {
+      return null;
+    }
+  };
+
+  const og = absolute(meta(html, "og:image") ?? meta(html, "twitter:image"));
+  if (og) return og;
+
+  for (const m of html.matchAll(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)) {
+    try {
+      const found = absolute(firstImage(JSON.parse(m[1])));
+      if (found) return found;
+    } catch {
+      // malformed JSON-LD: ignore
+    }
+  }
+
+  const srcOf = (tag: string | undefined) => (tag ? absolute(/\b(?:data-src|src)=["']([^"']+)["']/i.exec(tag)?.[1]) : null);
+  const featured = srcOf(/<img\b[^>]*\bwp-post-image\b[^>]*>/i.exec(html)?.[0]);
+  if (featured) return featured;
+
+  // Outlet rule: the first image after a marker such as the article body's class name.
+  if (photoAfter) {
+    const at = html.indexOf(photoAfter);
+    if (at >= 0) return srcOf(/<img\b[^>]*>/i.exec(html.slice(at))?.[0]);
+  }
+  return null;
+}
+
+// The first "image" value anywhere in a JSON-LD tree: a URL string, {url}, or a list of either.
+function firstImage(node: unknown): string | null {
+  if (!node || typeof node !== "object") return null;
+  if (Array.isArray(node)) {
+    for (const n of node) {
+      const f = firstImage(n);
+      if (f) return f;
+    }
+    return null;
+  }
+  const obj = node as Record<string, unknown>;
+  const img = obj.image;
+  if (typeof img === "string") return img;
+  if (Array.isArray(img)) {
+    const first = img[0];
+    if (typeof first === "string") return first;
+    if (first && typeof first === "object" && typeof (first as { url?: unknown }).url === "string") return (first as { url: string }).url;
+  }
+  if (img && typeof img === "object" && typeof (img as { url?: unknown }).url === "string") return (img as { url: string }).url;
+  for (const v of Object.values(obj)) {
+    const f = firstImage(v);
+    if (f) return f;
+  }
+  return null;
+}
+
+// Paywall markers found in article pages: schema.org's isAccessibleForFree=false (most
+// common), the "content_tier" meta, and Arena Holdings' "articleAccessMode":"subscription"
+// (Daily Dispatch, South Africa — missed until 2026-11-04).
+export function isPaywalled(html: string): boolean {
+  return (
+    /"isAccessibleForFree"\s*:\s*"?false"?/i.test(html) ||
+    /content=["'](locked|metered)["'][^>]*content_tier|content_tier["'][^>]*content=["'](locked|metered)/i.test(html) ||
+    /"articleAccessMode"\s*:\s*"subscription"/i.test(html)
+  );
+}
+
+async function fetchPage(url: string, photoAfter?: string): Promise<PageInfo | null> {
   try {
-    const res = await fetch(url, { headers: { "User-Agent": UA }, redirect: "follow", signal: AbortSignal.timeout(12000) });
+    const res = await politeFetch(url, { headers: { "User-Agent": UA }, redirect: "follow", signal: AbortSignal.timeout(12000) });
     if (!res.ok) return null;
-    const html = (await res.text()).slice(0, 400_000);
+    const html = (await readText(res)).slice(0, 400_000);
     // schema.org's isAccessibleForFree=false is the most widely used paywall marker.
-    const paywalled =
-      /"isAccessibleForFree"\s*:\s*"?false"?/i.test(html) ||
-      /content=["'](locked|metered)["'][^>]*content_tier|content_tier["'][^>]*content=["'](locked|metered)/i.test(html);
-    let ogImage = meta(html, "og:image") ?? meta(html, "twitter:image");
-    if (ogImage && ogImage.startsWith("/")) ogImage = new URL(ogImage, res.url).toString();
+    const paywalled = isPaywalled(html);
+    const ogImage = pageImage(html, res.url, photoAfter);
     const ogDescription = meta(html, "og:description") ?? meta(html, "description");
     return { finalUrl: res.url, ogImage, ogDescription: ogDescription ? stripHtml(ogDescription) : null, paywalled };
   } catch {
@@ -168,11 +306,26 @@ async function fetchPage(url: string): Promise<PageInfo | null> {
   }
 }
 
+// A site-wide placeholder judged by its file name ("logo.png", "og-default.jpg",
+// "ht-generic_india1.jpg"…). A name starting with a long number is a per-article
+// photo even if it contains such a word: newsvl.ru names real photos "12345_default.jpg".
+// IIIF image servers (CBC and many archives) end every URL in ".../<size>/<rotation>/default.jpg",
+// where "default" means default quality, not a default image.
+export function looksLikePlaceholder(imageUrl: string): boolean {
+  const path = new URL(imageUrl).pathname;
+  if (/\/(full|square|\d+,\d+,\d+,\d+)\/[^/]+\/!?\d+\/default\.\w+$/i.test(path)) return false;
+  const name = path.split("/").pop() ?? "";
+  // A name starting with a long number or a UUID is a per-article photo
+  // (newsvl.ru "12345_default.jpg"; Bitban CMS "<uuid>_facebook-aspect-ratio_default_0.jpg").
+  if (/^(\d{4,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i.test(name)) return false;
+  return /logo|generic|default|placeholder|noimage/i.test(name);
+}
+
 // Requests the image the way the card will (no Referer) and checks it is really an image.
 // Only the response headers are read; the body is discarded.
 async function imageReachable(url: string): Promise<boolean> {
   try {
-    const res = await fetch(url, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(10000) });
+    const res = await politeFetch(url, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(10000) });
     // Some CDNs send a doubled header such as "application/octet-stream, image/webp";
     // browsers sniff those fine, so look for "image/" anywhere in it.
     const ok = res.ok && (res.headers.get("content-type") ?? "").includes("image/");
@@ -209,7 +362,7 @@ const Judgement = z.object({
       place_known: z.boolean().describe("true if the headline or description names where in the country it happens"),
       city_en: z.string().describe("city or town in English; empty if unknown"),
       region_en: z.string().describe("state / prefecture in English; empty if unknown"),
-      city_ja: z.string().describe("the same city name written in Japanese; empty if unknown"),
+      city_ja: z.string().describe("the same city name in Japanese script (katakana, or kanji for Chinese/Japanese/Korean place names); empty if unknown"),
       lat: z.number(),
       lng: z.number(),
     }),
@@ -246,11 +399,8 @@ const FREE_LICENSE = /^(cc0|cc by(-sa)? [\d.]+|public domain|pd\b|attribution)/i
 
 const photoCache = new Map<string, Promise<ArticleImage | null>>();
 
-const stripTags = (html: string) =>
-  stripHtml(html)
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
-    .replace(/&lt;|&gt;/g, "")
-    .trim();
+// Commons' author field is HTML that may contain encoded angle brackets; drop them.
+const stripTags = (html: string) => stripHtml(html).replace(/[<>]/g, "").trim();
 
 // Looks up a Commons file's license and author. Returns null unless it's freely licensed.
 async function commonsImage(originalUrl: string): Promise<ArticleImage | null> {
@@ -315,6 +465,15 @@ function placePhoto(place: Place, country: string): Promise<ArticleImage | null>
   return photoCache.get(key)!;
 }
 
+/**
+ * True if `name` is written only in Japanese script (kana, kanji). The AI sometimes puts
+ * the local spelling in the Japanese field (اسلام آباد, 순천…); those are dropped and the
+ * card falls back to the English name.
+ */
+export function isJapaneseScript(name: string): boolean {
+  return /^[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}ー・\s]+$/u.test(name.trim());
+}
+
 // ---------- One outlet ----------
 
 const idFor = (url: string) => createHash("sha1").update(url).digest("hex").slice(0, 12);
@@ -338,12 +497,32 @@ export async function processOutlet(
     placeRejected: 0,
     photos: 0,
     kept: 0,
+    robots: "ok",
+    robotsReasons: [],
     errors: [],
     ms: 0,
   };
   const articles: Article[] = [];
+  const finish = () => {
+    report.ms = Date.now() - started;
+    return { articles, report };
+  };
 
   try {
+    // Stops the outlet if a site involved turns away Anthropic's crawlers or all bots, or
+    // its robots.txt can't be read. Checked before anything is fetched from that site.
+    const robotsAllow = async (urls: string[]) => {
+      const v = await checkRobots(urls);
+      if (v.blocking.length === 0 && v.unknown.length === 0) return true;
+      report.robots = v.blocking.length ? "blocked" : "unknown";
+      report.robotsReasons = [...v.blocking, ...v.unknown];
+      report.errors.push(`skipped by robots.txt: ${report.robotsReasons.join("; ")}`);
+      return false;
+    };
+
+    // 0. The feeds' sites must allow us.
+    if (!(await robotsAllow(outlet.feeds))) return finish();
+
     // 1. Feeds. One broken feed doesn't stop the others.
     const results = await Promise.allSettled(outlet.feeds.map(fetchFeed));
     const raw: RawItem[] = [];
@@ -366,8 +545,12 @@ export async function processOutlet(
       .slice(0, MAX_PER_OUTLET);
     report.afterRules = fresh.length;
 
+    // 2b. The sites the articles live on must allow us too (they can differ from the feed's:
+    // BBC feeds are on feeds.bbci.co.uk, its articles on www.bbc.co.uk).
+    if (!(await robotsAllow(fresh.map((it) => it.url)))) return finish();
+
     // 3. Article pages: drop paywalled ones; fill missing descriptions (sitemaps have none).
-    const pages = await mapLimit(fresh, 6, (it) => fetchPage(it.url));
+    const pages = await mapLimit(fresh, 6, (it) => fetchPage(it.url, outlet.rules.photoAfter));
     const open = fresh
       .map((it, i) => ({ it: { ...it, description: it.description || pages[i]?.ogDescription || "" }, page: pages[i] }))
       .filter(({ page }) => !page?.paywalled);
@@ -392,8 +575,7 @@ export async function processOutlet(
       const u = page?.ogImage ?? it.feedImage;
       if (u) imageUse.set(u, (imageUse.get(u) ?? 0) + 1);
     }
-    const isGeneric = (u: string) =>
-      (imageUse.get(u) ?? 0) >= 3 || /(logo|generic|default|placeholder|noimage)[^/]*$/i.test(new URL(u).pathname);
+    const isGeneric = (u: string) => (imageUse.get(u) ?? 0) >= 3 || looksLikePlaceholder(u);
     const candidates = open.map(({ it, page }) => {
       const u = page?.ogImage ?? it.feedImage;
       return u && !isGeneric(u) ? u : null;
@@ -415,7 +597,7 @@ export async function processOutlet(
           place = {
             city: j.city_en,
             region: j.region_en || undefined,
-            names: { en: j.city_en, ...(j.city_ja ? { ja: j.city_ja } : {}) },
+            names: { en: j.city_en, ...(isJapaneseScript(j.city_ja) ? { ja: j.city_ja } : {}) },
             lat: j.lat,
             lng: j.lng,
             source: "ai",
@@ -451,6 +633,5 @@ export async function processOutlet(
     report.errors.push(`unexpected: ${(e as Error).message}`);
   }
 
-  report.ms = Date.now() - started;
-  return { articles, report };
+  return finish();
 }

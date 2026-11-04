@@ -8,7 +8,7 @@ import { OUTLETS } from "../src/lib/outlets";
 import { saveArticles, saveHealth } from "../src/lib/store";
 import { mapLimit, processOutlet, type OutletReport } from "./lib/pipeline";
 
-const OUTLETS_AT_ONCE = 4;
+const OUTLETS_AT_ONCE = 8; // ~110 outlets: about 5 minutes
 
 function line(r: OutletReport) {
   const status = !r.ok ? "FAILED" : r.kept === 0 ? "EMPTY " : "ok    ";
