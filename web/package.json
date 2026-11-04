@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "collect": "node --env-file-if-exists=.env.local --import tsx scripts/collect.ts",
-    "check-outlet": "node --env-file-if-exists=.env.local --import tsx scripts/check-outlet.ts"
+    "check-outlet": "node --env-file-if-exists=.env.local --import tsx scripts/check-outlet.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.4.0",
@@ -23,7 +24,7 @@
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
-    "@types/node": "^20",
+    "@types/node": "^24.19.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/three": "^0.187.0",
@@ -31,6 +32,7 @@
     "eslint-config-next": "16.4.5",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.1.0"
   }
 }

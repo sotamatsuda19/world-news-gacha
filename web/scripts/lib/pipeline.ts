@@ -20,7 +20,7 @@ const MAX_AGE_HOURS = 48;
 const MAX_PER_OUTLET = 30;
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36";
 
-type RawItem = {
+export type RawItem = {
   title: string;
   description: string;
   url: string;
@@ -130,7 +130,7 @@ async function fetchFeed(feedUrl: string): Promise<RawItem[]> {
 }
 
 // The outlet's own rules from outlets.ts.
-function applyRules(outlet: Outlet, item: RawItem): RawItem | null {
+export function applyRules(outlet: Outlet, item: RawItem): RawItem | null {
   if (!item.title || !item.url) return null;
   const { dropTitle, stripTitle, dropUrl } = outlet.rules;
   if (dropTitle?.test(item.title) || dropUrl?.test(item.url)) return null;
