@@ -1,17 +1,5 @@
 // Shared shapes between the collector script, the API routes and the UI.
 
-export type Outlet = {
-  id: string;
-  name: string;
-  country: string; // English country name
-  countryCode: string; // ISO 3166-1 alpha-2, lowercase (used for flags)
-  lang: string; // BCP 47 language of the outlet's headlines
-  baseCity: string;
-  baseLat: number;
-  baseLng: number;
-  feeds: string[];
-};
-
 export type Place = {
   city: string; // English name, e.g. "Naha"
   region?: string; // state / prefecture, English

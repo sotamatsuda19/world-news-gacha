@@ -7,6 +7,7 @@ import type { Article } from "./types";
 const DATA_DIR = path.join(process.cwd(), "data");
 const ARTICLES_FILE = path.join(DATA_DIR, "articles.json");
 const SUMMARY_FILE = path.join(DATA_DIR, "summaries.json");
+const HEALTH_FILE = path.join(DATA_DIR, "health.json");
 
 let articlesCache: { mtimeMs: number; articles: Article[] } | null = null;
 
@@ -25,6 +26,12 @@ export async function saveArticles(articles: Article[]) {
     ARTICLES_FILE,
     JSON.stringify({ collectedAt: new Date().toISOString(), articles }, null, 2),
   );
+}
+
+// Per-outlet results of the latest collection run (see scripts/lib/pipeline.ts).
+export async function saveHealth(report: unknown) {
+  await fs.mkdir(DATA_DIR, { recursive: true });
+  await fs.writeFile(HEALTH_FILE, JSON.stringify(report, null, 2));
 }
 
 // Summaries are cached per "article id + language" so each one is generated once.
