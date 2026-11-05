@@ -10,7 +10,8 @@
     "collect": "node --env-file-if-exists=.env.local --import tsx scripts/collect.ts",
     "check-outlet": "node --env-file-if-exists=.env.local --import tsx scripts/check-outlet.ts",
     "test": "vitest run",
-    "check-robots": "node --import tsx scripts/check-robots.ts"
+    "check-robots": "node --import tsx scripts/check-robots.ts",
+    "eval-summary": "node --env-file-if-exists=.env.local --import tsx scripts/eval-summary.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.4.0",

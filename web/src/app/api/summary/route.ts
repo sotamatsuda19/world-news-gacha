@@ -3,19 +3,7 @@ import type { NextRequest } from "next/server";
 import { getSummary, loadArticles, putSummary } from "@/lib/store";
 import type { Article } from "@/lib/types";
 import { baseLang } from "@/lib/i18n";
-
-const MODEL = "claude-haiku-5-5";
-
-const SYSTEM = `You write the short note inside a "news letter" that arrives from somewhere in the world.
-The reader sees the original headline (possibly in a language they cannot read) and then your note.
-Write two or three short lines in the reader's language, one sentence per line, separated by single line breaks.
-Keep each line short: about 15 words, or about 35 characters in Japanese, Chinese or Korean.
-- what happened, in plain words;
-- the key detail (a number, a name, a place);
-- only if the text itself says so: what happens next or why it matters there.
-Use only facts in the headline and description. Never speculate, never comment on the reporting itself ("it was reported as..."), and never add filler such as "this is drawing attention". If the text supports only two lines, write two.
-Keep abbreviations you are not sure about as they are instead of guessing what they stand for.
-Plain text only: no markdown, no bullets, no blank lines, no quotation of the full headline.`;
+import { summaryRequest, tidyLineBreaks } from "@/lib/summary-prompt";
 
 const client = new Anthropic();
 
@@ -47,33 +35,16 @@ function startJob(key: string, article: Article, lang: string): Job {
       return end();
     }
 
-    const readerLanguage = new Intl.DisplayNames(["en"], { type: "language" }).of(lang) ?? lang;
     let text = "";
     try {
-      const stream = client.messages.stream({
-        model: MODEL,
-        max_tokens: 600,
-        // A three-line note doesn't need reasoning; skipping it keeps the first token fast.
-        thinking: { type: "disabled" },
-        output_config: { effort: "low" },
-        system: SYSTEM,
-        messages: [
-          {
-            role: "user",
-            content: [
-              `Reader's language: ${readerLanguage}`,
-              `Place: ${article.place.city}${article.place.region ? `, ${article.place.region}` : ""}, ${article.country}`,
-              `Outlet: ${article.outletName}`,
-              `Headline: ${article.title}`,
-              `Description: ${article.description || "(none)"}`,
-            ].join("\n"),
-          },
-        ],
-      });
+      // The model, instructions and message live in src/lib/summary-prompt.ts.
+      const stream = client.messages.stream(summaryRequest(article, lang));
       for await (const event of stream) {
         if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-          text += event.delta.text;
-          push(event.delta.text);
+          const piece = tidyLineBreaks(event.delta.text, /\n\s*$/.test(text) || !text.trim());
+          if (!piece) continue;
+          text += piece;
+          push(piece);
         }
       }
       const final = await stream.finalMessage();

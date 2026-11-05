@@ -5,7 +5,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { OUTLETS } from "../src/lib/outlets";
-import { saveArticles, saveHealth } from "../src/lib/store";
+import { pruneSummaries, saveArticles, saveHealth } from "../src/lib/store";
 import { mapLimit, processOutlet, type OutletReport } from "./lib/pipeline";
 
 const OUTLETS_AT_ONCE = 8; // ~110 outlets: about 5 minutes
@@ -34,6 +34,10 @@ async function main() {
 
   const articles = results.flatMap((r) => r.articles);
   await saveArticles(articles);
+  // Summaries of articles that are no longer served are never asked for again.
+  // (Letters a reader already received keep their own copy in the browser.)
+  const pruned = await pruneSummaries(new Set(articles.map((a) => a.id)));
+  if (pruned) console.log(`Removed ${pruned} summaries of articles no longer served.`);
   await saveHealth({ runAt: new Date().toISOString(), outlets: results.map((r) => r.report) });
   console.log(`\nSaved ${articles.length} articles from ${OUTLETS.length} outlets in ${((Date.now() - started) / 1000).toFixed(0)}s`);
 }

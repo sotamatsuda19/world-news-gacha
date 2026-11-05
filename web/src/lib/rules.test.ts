@@ -1,7 +1,7 @@
 // Small pieces that the rest of the system relies on: the outlet list, country
 // boxes, language handling and the outlet rules.
 import { describe, expect, it } from "vitest";
-import { applyRules, byLocalName, cleanUrl, isJapaneseScript, isPaywalled, looksLikePlaceholder, pageImage, stripHtml, type RawItem } from "../../scripts/lib/pipeline";
+import { applyRules, byLocalName, cleanUrl, fitsScript, isPaywalled, looksLikePlaceholder, pageImage, stripHtml, type RawItem } from "../../scripts/lib/pipeline";
 import { insideCountry } from "./countries";
 import { baseLang } from "./i18n";
 import { ALL_OUTLETS, outletById } from "./outlets";
@@ -38,10 +38,12 @@ describe("baseLang", () => {
   it("keeps supported languages and drops the region", () => {
     expect(baseLang("ja-JP")).toBe("ja");
     expect(baseLang("en-US")).toBe("en");
+    expect(baseLang("fr-FR")).toBe("fr");
+    expect(baseLang("pt-BR")).toBe("pt");
   });
 
   it("falls back to English for anything else (no paying for arbitrary languages)", () => {
-    expect(baseLang("fr-FR")).toBe("en");
+    expect(baseLang("sv-SE")).toBe("en");
     expect(baseLang("xx-anything")).toBe("en");
     expect(baseLang("")).toBe("en");
   });
@@ -177,17 +179,29 @@ describe("isPaywalled", () => {
   });
 });
 
-describe("isJapaneseScript", () => {
-  it("accepts katakana and kanji place names", () => {
-    expect(isJapaneseScript("イスラマバード")).toBe(true);
-    expect(isJapaneseScript("鳥羽市")).toBe(true);
-    expect(isJapaneseScript("ラス・アル・ハイマ")).toBe(true);
+describe("fitsScript", () => {
+  it("accepts katakana and kanji place names for Japanese", () => {
+    expect(fitsScript("ja", "イスラマバード")).toBe(true);
+    expect(fitsScript("ja", "鳥羽市")).toBe(true);
+    expect(fitsScript("ja", "ラス・アル・ハイマ")).toBe(true);
   });
 
   it("rejects local scripts the AI sometimes returns instead", () => {
-    expect(isJapaneseScript("اسلام آباد")).toBe(false); // Urdu
-    expect(isJapaneseScript("순천")).toBe(false); // Korean
-    expect(isJapaneseScript("Toronto")).toBe(false);
-    expect(isJapaneseScript("")).toBe(false);
+    expect(fitsScript("ja", "اسلام آباد")).toBe(false); // Urdu
+    expect(fitsScript("ja", "순천")).toBe(false); // Korean
+    expect(fitsScript("ja", "Toronto")).toBe(false);
+    expect(fitsScript("ja", "")).toBe(false);
+  });
+
+  it("checks Chinese, Korean and Latin-script languages too", () => {
+    expect(fitsScript("zh", "伊斯兰堡")).toBe(true);
+    expect(fitsScript("zh", "イスラマバード")).toBe(false);
+    expect(fitsScript("ko", "순천")).toBe(true);
+    expect(fitsScript("ko", "順天")).toBe(false);
+    expect(fitsScript("fr", "Saint-Étienne")).toBe(true);
+    expect(fitsScript("de", "München")).toBe(true);
+    expect(fitsScript("pt", "São Paulo")).toBe(true);
+    expect(fitsScript("es", "L'Hospitalet de Llobregat")).toBe(true);
+    expect(fitsScript("es", "Москва")).toBe(false);
   });
 });

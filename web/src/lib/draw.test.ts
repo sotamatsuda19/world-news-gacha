@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countriesToAvoid, drawArticle, type Random } from "./draw";
+import { countriesToAvoid, distanceKm, drawArticle, drawNear, type Random } from "./draw";
 import type { Article } from "./types";
 
 // A random number generator that always produces the same sequence for the same seed
@@ -135,5 +135,62 @@ describe("drawArticle", () => {
       const [a, b] = many(2, "jp", "nhk");
       expect(drawArticle([a, b], [a.id, b.id])).not.toBeNull();
     });
+  });
+});
+
+// A placed article, for drawNear.
+function at(lat: number, lng: number, outletId = "o", score = 3): Article {
+  const a = article("xx", outletId, score);
+  return { ...a, place: { ...a.place, lat, lng } };
+}
+
+describe("distanceKm", () => {
+  it("measures great-circle distance", () => {
+    const tokyo = { lat: 35.68, lng: 139.69 };
+    const osaka = { lat: 34.69, lng: 135.5 };
+    expect(distanceKm(tokyo, osaka)).toBeGreaterThan(390);
+    expect(distanceKm(tokyo, osaka)).toBeLessThan(410);
+    expect(distanceKm(tokyo, tokyo)).toBe(0);
+  });
+
+  it("works across the date line", () => {
+    // 1° of longitude apart at the equator ≈ 111 km, not 359°.
+    expect(distanceKm({ lat: 0, lng: 179.5 }, { lat: 0, lng: -179.5 })).toBeCloseTo(111, 0);
+  });
+});
+
+describe("drawNear", () => {
+  const tokyo = { lat: 35.68, lng: 139.69 };
+
+  it("picks from the closest radius that has articles", () => {
+    const osaka = at(34.69, 135.5); // ~400 km
+    const seoul = at(37.57, 126.98); // ~1150 km
+    for (let i = 0; i < 50; i++) expect(drawNear([osaka, seoul], tokyo, [], seeded(i))!.id).toBe(osaka.id);
+  });
+
+  it("widens the search when nothing is close", () => {
+    const seoul = at(37.57, 126.98);
+    expect(drawNear([seoul], tokyo, [])!.id).toBe(seoul.id);
+  });
+
+  it("returns null when nothing is within the largest radius", () => {
+    expect(drawNear([at(-33.87, 151.21)], { lat: 0, lng: -140 }, [])).toBeNull(); // Sydney vs the Pacific
+    expect(drawNear([], tokyo, [])).toBeNull();
+  });
+
+  it("skips recently shown articles while others are near", () => {
+    const [a, b] = [at(35.7, 139.7), at(35.6, 139.8)];
+    for (let i = 0; i < 50; i++) expect(drawNear([a, b], tokyo, [a.id], seeded(i))!.id).toBe(b.id);
+  });
+
+  it("weights nearby outlets by √(number of articles), like drawArticle", () => {
+    const articles = [
+      ...Array.from({ length: 16 }, () => at(35.7, 139.7, "big")),
+      ...Array.from({ length: 4 }, () => at(35.6, 139.6, "small")),
+    ];
+    const random = seeded(11);
+    let big = 0;
+    for (let i = 0; i < 20000; i++) if (drawNear(articles, tokyo, [], random)!.outletId === "big") big++;
+    expect(big / 20000).toBeCloseTo(2 / 3, 1);
   });
 });

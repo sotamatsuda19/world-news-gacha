@@ -9,27 +9,30 @@ export default function Typewriter({
   done,
   msPerChar = 24,
   lang,
+  instant = false,
 }: {
   text: string;
   done: boolean;
   msPerChar?: number;
   lang?: string;
+  instant?: boolean; // show everything at once (re-reading a saved letter)
 }) {
   const [shown, setShown] = useState(0);
   // Split by code point so emoji / CJK stay whole; collapse blank lines the model may add.
   const chars = Array.from(text.replace(/\n\s*\n/g, "\n"));
 
   useEffect(() => {
-    if (shown >= chars.length) return;
+    if (instant || shown >= chars.length) return;
     const id = setTimeout(() => setShown((n) => n + 1), msPerChar);
     return () => clearTimeout(id);
-  }, [shown, chars.length, msPerChar]);
+  }, [shown, chars.length, msPerChar, instant]);
 
-  const typing = !done || shown < chars.length;
+  const visible = instant ? chars.length : shown;
+  const typing = !done || visible < chars.length;
 
   return (
     <p lang={lang} className="whitespace-pre-line leading-relaxed">
-      {chars.slice(0, shown).join("")}
+      {chars.slice(0, visible).join("")}
       {typing && <span className="caret" aria-hidden />}
     </p>
   );

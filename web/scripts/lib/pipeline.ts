@@ -15,6 +15,7 @@ import { insideCountry, type CountryCode } from "../../src/lib/countries";
 import type { Outlet } from "../../src/lib/outlets";
 import type { Article, ArticleImage, Place } from "../../src/lib/types";
 import { checkRobots } from "./robots";
+import { cleanDescription } from "./description";
 
 const MODEL = "claude-haiku-5-5";
 const MAX_AGE_HOURS = 48;
@@ -362,7 +363,14 @@ const Judgement = z.object({
       place_known: z.boolean().describe("true if the headline or description names where in the country it happens"),
       city_en: z.string().describe("city or town in English; empty if unknown"),
       region_en: z.string().describe("state / prefecture in English; empty if unknown"),
+      // The card shows the city in the reader's summary language (see SUMMARY_LANGS in src/lib/i18n.ts).
       city_ja: z.string().describe("the same city name in Japanese script (katakana, or kanji for Chinese/Japanese/Korean place names); empty if unknown"),
+      city_zh: z.string().describe("the same city name in Simplified Chinese characters; empty if unknown"),
+      city_ko: z.string().describe("the same city name in Hangul; empty if unknown"),
+      city_es: z.string().describe("the same city name as written in Spanish (Latin letters); empty if unknown"),
+      city_fr: z.string().describe("the same city name as written in French (Latin letters); empty if unknown"),
+      city_de: z.string().describe("the same city name as written in German (Latin letters); empty if unknown"),
+      city_pt: z.string().describe("the same city name as written in Portuguese (Latin letters); empty if unknown"),
       lat: z.number(),
       lng: z.number(),
     }),
@@ -465,13 +473,33 @@ function placePhoto(place: Place, country: string): Promise<ArticleImage | null>
   return photoCache.get(key)!;
 }
 
+// The script each city-name language must be written in.
+const SCRIPT_OF: Record<string, RegExp> = {
+  ja: /^[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}ー・\s]+$/u,
+  zh: /^[\p{Script=Han}·・\s]+$/u,
+  ko: /^[\p{Script=Hangul}\s]+$/u,
+  latin: /^[\p{Script=Latin}\s'’.\-]+$/u,
+};
+
 /**
- * True if `name` is written only in Japanese script (kana, kanji). The AI sometimes puts
- * the local spelling in the Japanese field (اسلام آباد, 순천…); those are dropped and the
- * card falls back to the English name.
+ * True if `name` is written in the script that `lang` uses (kana/kanji for Japanese,
+ * Hangul for Korean, Latin letters for English, Spanish, French, German, Portuguese…).
+ * The AI sometimes puts the local spelling in another language's field (اسلام آباد,
+ * 순천…); those are dropped and the card falls back to the English name.
  */
-export function isJapaneseScript(name: string): boolean {
-  return /^[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}ー・\s]+$/u.test(name.trim());
+export function fitsScript(lang: string, name: string): boolean {
+  const pattern = SCRIPT_OF[lang] ?? SCRIPT_OF.latin;
+  return pattern.test(name.trim());
+}
+
+// { en, ja, zh, … } from the AI's per-language fields, keeping only well-formed names.
+function cityNames(j: Judged): Record<string, string> {
+  const names: Record<string, string> = { en: j.city_en };
+  const fields = { ja: j.city_ja, zh: j.city_zh, ko: j.city_ko, es: j.city_es, fr: j.city_fr, de: j.city_de, pt: j.city_pt };
+  for (const [lang, name] of Object.entries(fields)) {
+    if (name && fitsScript(lang, name)) names[lang] = name.trim();
+  }
+  return names;
 }
 
 // ---------- One outlet ----------
@@ -549,10 +577,16 @@ export async function processOutlet(
     // BBC feeds are on feeds.bbci.co.uk, its articles on www.bbc.co.uk).
     if (!(await robotsAllow(fresh.map((it) => it.url)))) return finish();
 
-    // 3. Article pages: drop paywalled ones; fill missing descriptions (sitemaps have none).
+    // 3. Article pages: drop paywalled ones; clean the descriptions (description.ts), and
+    // use the page's own description where the feed's is missing or nothing once cleaned
+    // (sitemaps have none at all).
     const pages = await mapLimit(fresh, 6, (it) => fetchPage(it.url, outlet.rules.photoAfter));
     const open = fresh
-      .map((it, i) => ({ it: { ...it, description: it.description || pages[i]?.ogDescription || "" }, page: pages[i] }))
+      .map((it, i) => {
+        const description =
+          cleanDescription(it.description, it.title) || cleanDescription(pages[i]?.ogDescription ?? "", it.title);
+        return { it: { ...it, description }, page: pages[i] };
+      })
       .filter(({ page }) => !page?.paywalled);
     report.paywalled = fresh.length - open.length;
 
@@ -597,7 +631,7 @@ export async function processOutlet(
           place = {
             city: j.city_en,
             region: j.region_en || undefined,
-            names: { en: j.city_en, ...(isJapaneseScript(j.city_ja) ? { ja: j.city_ja } : {}) },
+            names: cityNames(j),
             lat: j.lat,
             lng: j.lng,
             source: "ai",
