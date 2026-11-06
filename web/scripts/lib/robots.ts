@@ -6,11 +6,12 @@
 // even though the collector could technically fetch it. Rules aimed only at other AI
 // companies' bots (GPTBot, CCBot…) are reported for information but don't block.
 
+import { USER_AGENT } from "./user-agent";
+
 const ANTHROPIC_BOTS = /^(claudebot|claude-web|claude-user|claude-searchbot|anthropic-ai)$/i;
 const OTHER_AI_BOTS =
   /^(gptbot|chatgpt-user|oai-searchbot|ccbot|google-extended|perplexitybot|bytespider|meta-externalagent|applebot-extended|amazonbot|cohere-ai)$/i;
 
-const ROBOTS_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36";
 
 export type RobotsVerdict = {
   /** Reasons the outlet must not be used. Empty = allowed. */
@@ -73,7 +74,7 @@ function fetchRobots(origin: string) {
       (async () => {
         try {
           // Same User-Agent as the collector's other requests, so the answer is the one that applies to them.
-          const res = await fetch(`${origin}/robots.txt`, { headers: { "User-Agent": ROBOTS_UA }, signal: AbortSignal.timeout(10000) });
+          const res = await fetch(`${origin}/robots.txt`, { headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(10000) });
           if (res.status === 404 || res.status === 410) return { status: "none" as const };
           if (!res.ok) return { status: "error" as const, reason: `robots.txt answered HTTP ${res.status}` };
           return { status: "text" as const, body: await res.text() };

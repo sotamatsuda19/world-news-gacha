@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { NextRequest } from "next/server";
+import { after, type NextRequest } from "next/server";
 import { getSummary, loadArticles, putSummary } from "@/lib/store";
 import type { Article } from "@/lib/types";
 import { baseLang } from "@/lib/i18n";
@@ -28,7 +28,10 @@ function startJob(key: string, article: Article, lang: string): Job {
   inflight.set(key, job);
 
   // Runs to the end even if the first listener disconnects, so the result still gets cached.
-  void (async () => {
+  // On a serverless host (Vercel) the function may be frozen as soon as the response
+  // ends, e.g. when the reader closes the letter early. after() tells the host to keep
+  // it running until this promise settles.
+  const work = (async () => {
     // Without an API key, fall back to the feed's own description so the UI still works.
     if (!process.env.ANTHROPIC_API_KEY) {
       push(article.description || article.title);
@@ -61,6 +64,7 @@ function startJob(key: string, article: Article, lang: string): Job {
     }
     end();
   })();
+  after(() => work);
 
   return job;
 }

@@ -1,9 +1,10 @@
 import { promises as fs } from "fs";
 import path from "path";
-import type { Article } from "./types";
+import type { Article } from "../types";
 
-// File-backed storage. Good enough for a local prototype; swap for a database
-// (or KV) before deploying, since serverless hosts don't keep written files.
+// Local storage: plain JSON files in web/data/. Used on this Mac (no NEWS_STORE set).
+// Serverless hosts don't keep written files, so production uses ./cloud.ts instead.
+// Both files export the same six functions; ./index.ts picks one.
 const DATA_DIR = path.join(process.cwd(), "data");
 const ARTICLES_FILE = path.join(DATA_DIR, "articles.json");
 const SUMMARY_FILE = path.join(DATA_DIR, "summaries.json");

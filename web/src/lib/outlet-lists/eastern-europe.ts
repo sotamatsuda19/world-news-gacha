@@ -78,7 +78,8 @@ export const EASTERN_EUROPE: OutletInput[] = [
   },
   {
     id: "ru-primamedia",
-    name: "ПримаМедиа (PrimaMedia)",
+    enabled: false, // answers 403 to the collector's honest name (NewsGarden/1.0), 200 to a browser's (2026-11-05)
+    name:"ПримаМедиа (PrimaMedia)",
     countryCode: "ru",
     lang: "ru",
     baseCity: "Vladivostok",

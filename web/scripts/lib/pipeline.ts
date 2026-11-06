@@ -16,11 +16,11 @@ import type { Outlet } from "../../src/lib/outlets";
 import type { Article, ArticleImage, Place } from "../../src/lib/types";
 import { checkRobots } from "./robots";
 import { cleanDescription } from "./description";
+import { USER_AGENT as UA } from "./user-agent";
 
 const MODEL = "claude-haiku-5-5";
 const MAX_AGE_HOURS = 48;
 const MAX_PER_OUTLET = 30;
-const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36";
 
 export type RawItem = {
   title: string;
@@ -400,7 +400,7 @@ async function judge(client: Anthropic, outlet: Outlet, items: RawItem[]): Promi
 
 // ---------- Fallback photo (free license) ----------
 
-const WIKI_UA = { "User-Agent": "NewsGardenPrototype/0.1 (local prototype)" };
+const WIKI_UA = { "User-Agent": UA };
 // Licenses we accept for the fallback photo. Anything else (including Wikipedia's
 // local "fair use" uploads, which never live under /wikipedia/commons/) is skipped.
 const FREE_LICENSE = /^(cc0|cc by(-sa)? [\d.]+|public domain|pd\b|attribution)/i;
