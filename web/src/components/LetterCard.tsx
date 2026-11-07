@@ -26,6 +26,7 @@ export default function LetterCard({
   instant = false,
   t,
   onClose,
+  onAbout,
 }: {
   content: CardContent;
   initialImage: ArticleImage | null; // already preloaded while the globe was spinning
@@ -35,9 +36,13 @@ export default function LetterCard({
   instant?: boolean; // re-reading: show the summary at once, no typing
   t: UiStrings;
   onClose: () => void;
+  onAbout?: () => void; // shows "how was this letter chosen?" once the summary has typed out
 }) {
   // Safety net: if the photo fails here, drop to the place photo, then to none.
   const [image, setImage] = useState(initialImage);
+  // The AI note under the card appears only once the summary has finished typing,
+  // so it doesn't compete with the letter arriving.
+  const [typed, setTyped] = useState(false);
   const city = content.place.names?.[summaryLang] ?? content.place.names?.en ?? content.place.city;
 
   const close = () => {
@@ -91,6 +96,7 @@ export default function LetterCard({
               lang={summaryLang}
               instant={instant}
               msPerChar={WIDE_SCRIPT.test(summaryLang) ? 34 : 17}
+              onFinish={() => setTyped(true)}
             />
           </div>
 
@@ -100,8 +106,32 @@ export default function LetterCard({
               {t.read} →
             </a>
           </footer>
+
+          {/* Inside the paper (so it isn't a tap that closes the letter), and only after
+              the summary has finished typing: by then the letter has been read. */}
+          {onAbout && (
+            <a
+              href="/about"
+              className="card-about"
+              data-shown={typed || undefined}
+              tabIndex={typed ? undefined : -1}
+              onClick={(e) => {
+                if (e.metaKey || e.ctrlKey || e.shiftKey) return; // a new tab: just open it
+                e.preventDefault();
+                onAbout();
+              }}
+            >
+              {t.howChosen}
+            </a>
+          )}
         </div>
       </article>
+
+      {/* Outside the paper, quiet, and not a link: it only says the note may be wrong.
+          (A link here would catch taps meant to close the letter.) */}
+      <p className="card-ai-note" data-shown={typed || undefined}>
+        {t.aiNote}
+      </p>
     </div>
   );
 }

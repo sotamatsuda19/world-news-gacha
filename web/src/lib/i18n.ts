@@ -34,7 +34,10 @@ type UiKey =
   | "history"
   | "clearHistory"
   | "clearHistoryConfirm"
-  | "letters";
+  | "letters"
+  | "aiNote"
+  | "howChosen"
+  | "about";
 
 const strings: Record<UiLang, Record<UiKey, string>> = {
   ja: {
@@ -60,6 +63,9 @@ const strings: Record<UiLang, Record<UiKey, string>> = {
     clearHistory: "記録を消す",
     clearHistoryConfirm: "受け取った手紙の記録をすべて消しますか？",
     letters: "通",
+    aiNote: "要約はAIが書いています。誤りを含むことがあります。",
+    howChosen: "この一通は、どうやって選ばれた？",
+    about: "NewsGacha について",
   },
   en: {
     open: "Tap to open",
@@ -84,6 +90,9 @@ const strings: Record<UiLang, Record<UiKey, string>> = {
     clearHistory: "Clear history",
     clearHistoryConfirm: "Delete the record of every letter you have received?",
     letters: "letters",
+    aiNote: "Summary written by AI. It may contain mistakes.",
+    howChosen: "How was this letter chosen?",
+    about: "About NewsGacha",
   },
 };
 

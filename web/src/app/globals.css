@@ -477,6 +477,8 @@ main[data-shaking] {
   position: absolute;
   inset: 0;
   display: flex;
+  flex-direction: column; /* the card, then the AI note under it */
+  gap: 12px;
   align-items: center;
   justify-content: center;
   padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
@@ -492,6 +494,7 @@ main[data-shaking] {
   position: relative;
   width: min(100%, 440px);
   max-height: 100%;
+  min-height: 0; /* in the column, shrink (and scroll) so the note below stays on screen */
   overflow-y: auto;
   background: var(--paper);
   color: var(--ink);
@@ -627,6 +630,47 @@ main[data-shaking] {
   50% {
     opacity: 0;
   }
+}
+
+/* Under the paper, in the same quiet voice as "Tap to open". Not a link. */
+.card-ai-note {
+  flex: none;
+  max-width: 440px;
+  padding: 0 8px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: rgba(238, 242, 255, 0.55);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+  opacity: 0;
+  transition: opacity 900ms ease 300ms;
+}
+.card-ai-note[data-shown] {
+  opacity: 1;
+}
+
+/* "How was this letter chosen?": a quiet line at the foot of the paper, after reading. */
+.card-about {
+  display: block;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(35, 32, 27, 0.18);
+  font-family: var(--font-serif);
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+  text-align: center;
+  color: var(--ink-soft);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 900ms ease 300ms;
+}
+.card-about[data-shown] {
+  opacity: 1;
+  pointer-events: auto;
+}
+.card-about:hover {
+  color: var(--ink);
 }
 
 .card-close-quiet {
@@ -863,6 +907,17 @@ main[data-shaking] {
 }
 .settings-action-danger {
   color: #ffb4a8;
+}
+.settings-about {
+  display: block;
+  margin-top: 6px;
+  padding: 12px 0 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+  color: rgba(238, 242, 255, 0.7);
+}
+.settings-about:hover {
+  color: #eef2ff;
 }
 
 /* Placing pins: a quiet banner at the top while the globe stays touchable. */

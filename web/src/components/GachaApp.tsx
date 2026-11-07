@@ -1,9 +1,11 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { handOff } from "@/lib/about/handoff";
 import type { ArticleImage, DrawResult } from "@/lib/types";
 import { uiStrings } from "@/lib/i18n";
-import { PINNED_PLACE_CHANCE, MAX_PLACES, roundForRequest, updateSettings, useSettings } from "@/lib/settings";
+import { PINNED_PLACE_CHANCE, MAX_PLACES, RECENT_LIMIT, roundForRequest, updateSettings, useSettings } from "@/lib/settings";
 import { groupLetters, lettersStore, saveLetter, setLetterSummary, type Letter, type LetterLight } from "@/lib/letters";
 import { playLanding, playSample, playZoom, setSoundEnabled, startWind, unlockAudio } from "@/lib/sound";
 import { useSummaryStream } from "@/lib/use-summary";
@@ -28,7 +30,6 @@ type Overlay =
 const SPIN_MS = 3600;
 const ZOOM_MS = 750;
 const RIPPLE_MS = 450; // after a long press, let the ripple show before turning
-const RECENT_LIMIT = 12;
 const IMAGE_WAIT_MS = 1200; // after landing, wait at most this long for the photo check
 const READY_TIMEOUT_MS = 10000; // show the globe anyway if the ready signal never comes
 const SHAKE_MS = 320;
@@ -75,6 +76,8 @@ export default function GachaApp() {
   const [landingPoint, setLandingPoint] = useState<{ x: number; y: number } | null>(null);
   const [error, setError] = useState(false);
   const [shaking, setShaking] = useState(false);
+  const [leaving, setLeaving] = useState(false); // flying out to the about page
+  const router = useRouter();
   const settings = useSettings();
   const letters = lettersStore.use();
   const live = useSummaryStream(); // the summary of the letter being delivered
@@ -82,7 +85,12 @@ export default function GachaApp() {
   const recent = useRef<string[]>([]);
 
   const t = uiStrings(settings.ui);
-  const onGlobeReady = useCallback(() => setReady(true), []);
+  // (The globe is made again when this page is shown again, e.g. back from /about:
+  // that is also when the "leaving" state ends.)
+  const onGlobeReady = useCallback(() => {
+    setReady(true);
+    setLeaving(false);
+  }, []);
   useEffect(() => {
     const id = setTimeout(() => setReady(true), READY_TIMEOUT_MS);
     return () => clearTimeout(id);
@@ -195,6 +203,24 @@ export default function GachaApp() {
     setPhase("idle");
   };
 
+  // ---------- To the about page ----------
+
+  // From the letter ("how was this letter chosen?") or from settings: put everything
+  // away, pull back into the stars, and let the about page start from there.
+  const goAbout = async () => {
+    if (leaving) return;
+    setLeaving(true);
+    live.stop();
+    reread.stop();
+    globe.current?.clearMarker();
+    setArticle(null);
+    setPhase("idle");
+    setOverlay(null);
+    const lng = await globe.current?.zoomOut(1600);
+    if (lng !== undefined) handOff("about", lng);
+    router.push("/about");
+  };
+
   // ---------- The idle globe: lights, long press, pins ----------
 
   const onLightClick = (light: GlobeLight) => {
@@ -272,6 +298,7 @@ export default function GachaApp() {
           summaryLang={settings.summary}
           t={t}
           onClose={closeCard}
+          onAbout={goAbout}
         />
       )}
 
@@ -308,6 +335,7 @@ export default function GachaApp() {
           letterCount={letters.length}
           t={t}
           onAddPlace={() => setOverlay({ kind: "pinning" })}
+          onAbout={goAbout}
           onClose={() => setOverlay(null)}
         />
       )}
@@ -323,14 +351,14 @@ export default function GachaApp() {
 
       <SettingsButton
         label={t.settings}
-        hidden={!ready || !idle || !!overlay}
+        hidden={!ready || !idle || !!overlay || leaving}
         onClick={() => {
           unlockAudio();
           setOverlay({ kind: "settings" });
         }}
       />
 
-      <div className="gacha-dock" data-hidden={!idle || !ready || !!overlay || undefined}>
+      <div className="gacha-dock" data-hidden={!idle || !ready || !!overlay || leaving || undefined}>
         {error && <p className="gacha-error">{t.error}</p>}
         <button type="button" className="gacha-button" onClick={() => deliver(null, false)} aria-label={t.draw}>
           <span className="gacha-button-core" />

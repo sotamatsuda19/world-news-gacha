@@ -1,0 +1,79 @@
+/* /terms and /publishers: a quiet page to read, on the app's night sky. */
+.info {
+  min-height: 100vh;
+  background: var(--space);
+  color: #eef2ff;
+  font-family: var(--font-sans);
+}
+.info-body {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: calc(48px + env(safe-area-inset-top)) 20px calc(64px + env(safe-area-inset-bottom));
+  line-height: 1.95;
+  font-size: 14.5px;
+  letter-spacing: 0.03em;
+}
+.info-site a {
+  font-family: "Avenir Next", var(--font-sans);
+  font-size: 11px;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  color: rgba(238, 242, 255, 0.55);
+}
+.info h1 {
+  margin-top: 28px;
+  font-weight: 300;
+  font-size: 24px;
+  letter-spacing: 0.14em;
+}
+.info-lead {
+  margin-top: 16px;
+  color: rgba(238, 242, 255, 0.75);
+}
+.info h2 {
+  margin-top: 40px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(238, 242, 255, 0.12);
+  font-weight: 400;
+  font-size: 15.5px;
+  letter-spacing: 0.1em;
+  color: var(--glow);
+}
+.info p,
+.info ul {
+  margin-top: 10px;
+}
+.info ul {
+  padding-left: 1.2em;
+  list-style: disc;
+}
+.info li + li {
+  margin-top: 6px;
+}
+.info-body a {
+  color: #fff3dc;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 214, 140, 0.4);
+  text-underline-offset: 3px;
+}
+.info-note {
+  font-size: 12.5px;
+  color: rgba(238, 242, 255, 0.55);
+}
+.info-nav {
+  margin-top: 56px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(238, 242, 255, 0.12);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 26px;
+  font-size: 12.5px;
+  letter-spacing: 0.1em;
+}
+.info-nav a {
+  color: rgba(238, 242, 255, 0.6);
+  text-decoration: none;
+}
+.info-nav a:hover {
+  color: #eef2ff;
+}

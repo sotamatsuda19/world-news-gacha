@@ -3,7 +3,7 @@ import "flag-icons/css/flag-icons.min.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "News Garden",
+  title: "NewsGacha",
   description: "Press the button. A letter arrives from somewhere on Earth.",
 };
 

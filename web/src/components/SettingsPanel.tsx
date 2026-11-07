@@ -30,12 +30,14 @@ export default function SettingsPanel({
   letterCount,
   t,
   onAddPlace,
+  onAbout,
   onClose,
 }: {
   settings: Settings;
   letterCount: number;
   t: UiStrings;
   onAddPlace: () => void;
+  onAbout: () => void;
   onClose: () => void;
 }) {
   const clearHistory = () => {
@@ -133,6 +135,18 @@ export default function SettingsPanel({
             </button>
           )}
         </div>
+
+        <a
+          href="/about"
+          className="settings-about"
+          onClick={(e) => {
+            if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+            e.preventDefault();
+            onAbout();
+          }}
+        >
+          {t.about} →
+        </a>
       </section>
     </div>
   );

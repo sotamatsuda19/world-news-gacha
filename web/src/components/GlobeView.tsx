@@ -3,6 +3,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import type { GlobeInstance } from "globe.gl";
 import * as THREE from "three";
+import { takeHandoff } from "@/lib/about/handoff";
 import { distanceKm } from "@/lib/draw";
 
 export type SpinOptions = {
@@ -33,6 +34,9 @@ export type GlobeHandle = {
   setLights: (lights: GlobeLight[]) => void;
   // Back to the slow idle rotation.
   idle: () => void;
+  // Leaving for the about page: pull far back into the stars while fading out.
+  // Resolves with the longitude left facing us, for the next page to start from.
+  zoomOut: (durationMs: number) => Promise<number>;
 };
 
 type Props = {
@@ -52,6 +56,10 @@ function altitudes() {
   const portrait = window.innerWidth / window.innerHeight < 0.8;
   return portrait ? { idle: 3.9, landed: 2.9, close: 1.5 } : { idle: 2.4, landed: 1.7, close: 0.9 };
 }
+// Far out among the stars (they sit on a sphere of radius 1800–2400; the Earth's is 100),
+// where the trip to and from the about page starts and ends.
+const FAR_ALTITUDE = 14;
+const ARRIVE_MS = 2600;
 const SKIP_MS = 450;
 const WIND_UP_MS = 240;
 const LONG_PRESS_MS = 600;
@@ -222,6 +230,11 @@ const GlobeView = forwardRef<GlobeHandle, Props>(function GlobeView(
     let disposed = false;
     let globe: GlobeInstance | null = null;
     const light = isLightDevice();
+    // Coming back from the about page: start far out, at the longitude it ended on,
+    // and fly in once the Earth has loaded.
+    const arriving = takeHandoff("app");
+    el.style.transition = "";
+    el.style.opacity = arriving === null ? "" : "0";
 
     // globe.gl touches `window` at import time, so load it only in the browser.
     import("globe.gl").then(({ default: Globe }) => {
@@ -251,7 +264,13 @@ const GlobeView = forwardRef<GlobeHandle, Props>(function GlobeView(
           return pin.root;
         })
         // Fires once the earth texture has loaded: lifts the loading screen.
-        .onGlobeReady(() => callbacks.current.onReady?.())
+        .onGlobeReady(() => {
+          callbacks.current.onReady?.();
+          if (arriving === null || !globe) return;
+          el.style.transition = "opacity 900ms ease";
+          el.style.opacity = "1";
+          globe.pointOfView({ lat: 20, lng: arriving + 25, altitude: altitudes().idle }, ARRIVE_MS);
+        })
         .width(el.clientWidth)
         .height(el.clientHeight);
 
@@ -279,7 +298,10 @@ const GlobeView = forwardRef<GlobeHandle, Props>(function GlobeView(
           pin.root.updateMatrixWorld(true);
         }
       };
-      globe.pointOfView({ lat: 20, lng: 135, altitude: altitudes().idle }, 0);
+      globe.pointOfView(
+        arriving === null ? { lat: 20, lng: 135, altitude: altitudes().idle } : { lat: 20, lng: arriving, altitude: FAR_ALTITUDE },
+        0,
+      );
 
       const controls = globe.controls();
       controls.autoRotate = true;
@@ -482,6 +504,28 @@ const GlobeView = forwardRef<GlobeHandle, Props>(function GlobeView(
       for (const key of pinsRef.current.keys()) if (!keep.has(key)) pinsRef.current.delete(key);
       lightsRef.current = lights;
       globeRef.current?.objectsData(lights);
+    },
+    zoomOut(durationMs) {
+      const globe = globeRef.current;
+      const el = containerRef.current;
+      if (!globe) return Promise.resolve(0);
+      const controls = globe.controls();
+      controls.autoRotate = false;
+      controls.enabled = false;
+      const from = globe.pointOfView();
+      return animate(durationMs, (t) => {
+        const k = easeInOut(t);
+        globe.pointOfView(
+          {
+            lat: from.lat + (20 - from.lat) * k,
+            lng: from.lng + 20 * k,
+            // Evenly in scale (each moment shrinks the Earth by the same factor), which reads as a steady pull-back.
+            altitude: from.altitude * Math.pow(FAR_ALTITUDE / from.altitude, k),
+          },
+          0,
+        );
+        if (el) el.style.opacity = String(1 - Math.max(0, (t - 0.55) / 0.45));
+      }).then(() => globe.pointOfView().lng);
     },
     idle() {
       const globe = globeRef.current;

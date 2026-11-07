@@ -25,6 +25,7 @@ export type Settings = z.infer<typeof Settings>;
 
 const DEFAULTS: Settings = { uiLang: null, summaryLang: null, sound: true, places: [] };
 
+// (The key keeps the app's first name, News Garden: renaming it would lose what's saved.)
 export const settingsStore = createLocalStore("newsgarden:settings:v1", Settings, DEFAULTS);
 
 // The browser's language ("en" on the server, so the first render matches).
@@ -51,8 +52,8 @@ export function updateSettings(change: Partial<Settings>) {
   settingsStore.update((s) => ({ ...s, ...change }));
 }
 
-// How often a draw comes from near one of the pinned places.
-export const PINNED_PLACE_CHANCE = 0.2;
+// How often a draw uses a pinned place, and how many recent ids it sends: see ./limits.
+export { PINNED_PLACE_CHANCE, RECENT_LIMIT } from "./limits";
 
 // Coordinates leave the browser rounded to 0.1° (about 10 km): the search starts
 // at 500 km, and a pinned place may be someone's home.

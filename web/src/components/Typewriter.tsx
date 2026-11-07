@@ -10,12 +10,14 @@ export default function Typewriter({
   msPerChar = 24,
   lang,
   instant = false,
+  onFinish,
 }: {
   text: string;
   done: boolean;
   msPerChar?: number;
   lang?: string;
   instant?: boolean; // show everything at once (re-reading a saved letter)
+  onFinish?: () => void; // called once the whole text is shown and nothing more is coming
 }) {
   const [shown, setShown] = useState(0);
   // Split by code point so emoji / CJK stay whole; collapse blank lines the model may add.
@@ -29,6 +31,10 @@ export default function Typewriter({
 
   const visible = instant ? chars.length : shown;
   const typing = !done || visible < chars.length;
+
+  useEffect(() => {
+    if (!typing) onFinish?.();
+  }, [typing, onFinish]);
 
   return (
     <p lang={lang} className="whitespace-pre-line leading-relaxed">

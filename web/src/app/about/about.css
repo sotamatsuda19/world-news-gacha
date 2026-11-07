@@ -1,0 +1,567 @@
+/* The about page (/about). Everything is under .ab and named ab-…, so nothing here
+   touches the app's own styles (this file stays loaded after moving back to /). */
+
+.ab {
+  --ab-text: #eef2ff;
+  --ab-dim: rgba(238, 242, 255, 0.55);
+  --ab-gold: #ffd68c;
+  min-height: 100vh;
+  background: var(--space);
+  color: var(--ab-text);
+  font-family: var(--font-sans);
+  font-weight: 300;
+  overflow-x: clip;
+}
+.ab-story {
+  position: relative;
+  height: 1845vh;
+}
+.ab-stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100svh;
+  overflow: hidden;
+  background: var(--space);
+}
+.ab-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* Out of the dark: also how the trip from the app's globe ends. */
+  animation: ab-fade-in 1.2s ease-out both;
+}
+@keyframes ab-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---------- Opening ---------- */
+.ab-hero {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 60%;
+  text-align: center;
+  padding: 0 16px;
+  pointer-events: none;
+}
+.ab-hero h1 {
+  font-weight: 200;
+  font-size: clamp(25px, 4vw, 52px);
+  letter-spacing: 0.22em;
+  line-height: 1.75;
+}
+.ab-hero p {
+  margin-top: 14px;
+  font-family: "Avenir Next", var(--font-sans);
+  font-size: 11px;
+  letter-spacing: 0.5em;
+  color: var(--ab-dim);
+  text-transform: uppercase;
+}
+/* On opening, the words rise out of space. */
+.ab-hero h1,
+.ab-hero p {
+  opacity: 0;
+  transform: translateY(14px);
+  filter: blur(8px);
+  animation: ab-rise 2.6s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+.ab-hero h1 {
+  animation-delay: 0.5s;
+}
+.ab-hero p {
+  animation-delay: 1.7s;
+}
+@keyframes ab-rise {
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+/* ---------- Narration ---------- */
+.ab-say {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: max(28px, 7vh);
+  text-align: center;
+  padding: 0 18px;
+  opacity: 0;
+  pointer-events: none;
+  text-shadow: 0 0 24px #000, 0 0 8px #000;
+}
+.ab-say h2 {
+  font-weight: 300;
+  font-size: clamp(19px, 2.5vw, 31px);
+  letter-spacing: 0.18em;
+  line-height: 1.75;
+}
+.ab-say p {
+  margin-top: 12px;
+  font-size: clamp(12px, 1.2vw, 14.5px);
+  letter-spacing: 0.12em;
+  line-height: 1.95;
+  color: rgba(238, 242, 255, 0.72);
+}
+.ab-no {
+  display: block;
+  margin-bottom: 8px;
+  font-family: "Avenir Next", var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.4em;
+  color: var(--ab-gold);
+}
+.ab[lang="en"] .ab-say h2,
+.ab[lang="en"] .ab-hero h1 {
+  letter-spacing: 0.06em;
+}
+.ab[lang="en"] .ab-say p {
+  letter-spacing: 0.03em;
+}
+
+/* A real headline, next to its light. */
+.ab-flash {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: min(300px, 60vw);
+  padding: 6px 10px 7px 12px;
+  border-left: 1px solid rgba(255, 214, 140, 0.7);
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 0 8px 8px 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s;
+  text-shadow: 0 0 12px #000, 0 0 4px #000;
+}
+.ab-flash-where {
+  font-size: 10px;
+  letter-spacing: 0.26em;
+  color: var(--ab-gold);
+}
+.ab-flash-title {
+  margin-top: 4px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+/* ---------- The letter: unbleached paper, its grain, two folds, a postmark ---------- */
+.ab-letter {
+  --ab-ink: #2c2519;
+  --ab-ink2: rgba(44, 37, 25, 0.62);
+  --ab-post: #a8452f;
+  position: absolute;
+  left: 50%;
+  bottom: max(58px, 9vh);
+  width: min(440px, calc(100vw - 32px));
+  padding: 24px 24px 18px;
+  color: var(--ab-ink);
+  font-family: var(--font-serif);
+  border-radius: 2px;
+  background:
+    linear-gradient(180deg, transparent 32.6%, rgba(90, 66, 30, 0.13) 33.2%, rgba(255, 255, 255, 0.55) 33.6%, transparent 34.6%),
+    linear-gradient(180deg, transparent 65.8%, rgba(90, 66, 30, 0.13) 66.4%, rgba(255, 255, 255, 0.55) 66.8%, transparent 67.8%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .42 0 0 0 0 .33 0 0 0 0 .2 0 0 0 .22 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    radial-gradient(130% 110% at 50% 40%, #f7f0e1 55%, #ebdfc6 100%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 22px 60px rgba(0, 0, 0, 0.65), 0 0 40px rgba(255, 214, 140, 0.12);
+  opacity: 0;
+  pointer-events: none;
+  transform-origin: 50% 100%;
+  transform: translate(-50%, 18px) perspective(900px) rotateX(58deg) rotate(-0.8deg);
+  transition: opacity 0.5s, transform 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.ab-letter[data-on] {
+  opacity: 1;
+  transform: translate(-50%, 0) perspective(900px) rotateX(0) rotate(-0.8deg);
+  pointer-events: auto;
+}
+.ab-letter-where {
+  padding-right: 70px;
+  font-size: 11.5px;
+  letter-spacing: 0.18em;
+  color: var(--ab-ink2);
+}
+.ab-letter-title {
+  margin-top: 12px;
+  padding-right: 62px; /* so the words don't run under the postmark */
+  font-family: "Iowan Old Style", "Palatino", var(--font-serif);
+  font-size: 17px;
+  line-height: 1.55;
+}
+.ab-letter-summary {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(44, 37, 25, 0.28);
+  font-size: 14.5px;
+  line-height: 1.95;
+  white-space: pre-line;
+}
+.ab-letter-summary[data-loading]::after {
+  content: "…";
+  color: var(--ab-ink2);
+}
+.ab-letter-acts {
+  margin-top: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+}
+.ab-letter a {
+  color: var(--ab-ink2);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(44, 37, 25, 0.25);
+}
+.ab-letter button {
+  font: inherit;
+  color: var(--ab-ink);
+  background: none;
+  border: 1px solid rgba(44, 37, 25, 0.45);
+  border-radius: 999px;
+  padding: 7px 16px;
+  cursor: pointer;
+  letter-spacing: 0.2em;
+}
+.ab-letter button:hover {
+  border-color: var(--ab-post);
+  color: var(--ab-post);
+}
+.ab-letter button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ab-stamp {
+  position: absolute;
+  right: 16px;
+  top: 12px;
+  width: 62px;
+  height: 62px;
+  border: 1.5px solid var(--ab-post);
+  border-radius: 50%;
+  color: var(--ab-post);
+  opacity: 0.72;
+  transform: rotate(-14deg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: "Avenir Next", var(--font-sans);
+  line-height: 1.15;
+  mix-blend-mode: multiply;
+}
+.ab-stamp::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 0.75px solid var(--ab-post);
+  border-radius: 50%;
+}
+.ab-stamp b {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.ab-stamp small {
+  font-size: 7.5px;
+  letter-spacing: 0.08em;
+}
+
+/* ---------- What the draw uses / does not use ---------- */
+.ab-recipe {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(760px, calc(100vw - 32px));
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  pointer-events: none;
+}
+.ab-recipe h2 {
+  text-align: center;
+  font-weight: 300;
+  font-size: clamp(19px, 2.4vw, 28px);
+  letter-spacing: 0.18em;
+}
+/* Left and right are pairs. The left stays; the right scatters like stars. */
+.ab-pairs {
+  --gap: clamp(48px, 9vw, 112px);
+  margin-top: 5vh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: var(--gap);
+}
+.ab-pairs h3 {
+  font-weight: 400;
+  font-size: 11.5px;
+  letter-spacing: 0.3em;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(238, 242, 255, 0.2);
+}
+.ab-pairs h3.ab-use {
+  color: var(--ab-gold);
+}
+.ab-pairs h3.ab-not {
+  color: var(--ab-dim);
+}
+.ab-pairs > div {
+  --fs: clamp(13px, 1.4vw, 15.5px);
+  --pt: 15px;
+  position: relative;
+  padding: var(--pt) 0 0;
+  font-size: var(--fs);
+  line-height: 1.6;
+  letter-spacing: 0.06em;
+}
+/* The ↔ sits large, halfway between the columns, and leaves with the right-hand item. */
+.ab-pairs > div.ab-not::before {
+  content: "↔";
+  position: absolute;
+  left: calc(-0.5 * var(--gap));
+  top: var(--pt);
+  height: calc(var(--fs) * 1.6);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  font-family: "Hiragino Sans", sans-serif;
+  font-size: clamp(22px, 2.4vw, 30px);
+  font-weight: 200;
+  line-height: 1;
+  letter-spacing: 0;
+  background: linear-gradient(90deg, var(--ab-gold), rgba(238, 242, 255, 0.55));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.ab-pairs small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--ab-dim);
+  letter-spacing: 0.04em;
+}
+.ab-pairs > div.ab-not {
+  transition: opacity 1.6s, transform 2.2s cubic-bezier(0.2, 0.6, 0.3, 1), filter 1.6s;
+}
+.ab-pairs > div.ab-not[data-gone] {
+  opacity: 0;
+  filter: blur(6px);
+}
+.ab-after {
+  margin-top: 5vh;
+  text-align: center;
+  font-size: clamp(14px, 1.6vw, 17px);
+  letter-spacing: 0.14em;
+  line-height: 1.9;
+  opacity: 0;
+  transition: opacity 1s;
+}
+.ab-after[data-on] {
+  opacity: 1;
+}
+
+/* ---------- The end ---------- */
+.ab-end {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: max(28px, 8vh);
+  text-align: center;
+  padding: 0 16px;
+  opacity: 0;
+  pointer-events: none;
+  text-shadow: 0 0 24px #000;
+}
+.ab-end h2 {
+  font-weight: 200;
+  font-size: clamp(22px, 3vw, 38px);
+  letter-spacing: 0.22em;
+  line-height: 1.8;
+}
+.ab[lang="en"] .ab-end h2 {
+  letter-spacing: 0.08em;
+}
+.ab-nums {
+  margin-top: 2.5vh;
+  display: flex;
+  justify-content: center;
+  gap: clamp(22px, 5vw, 70px);
+}
+.ab-nums b {
+  display: block;
+  font-family: "Avenir Next", var(--font-sans);
+  font-weight: 100;
+  font-size: clamp(32px, 4vw, 56px);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.ab-nums span {
+  display: block;
+  margin-top: 8px;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  color: rgba(238, 242, 255, 0.7);
+}
+.ab-go {
+  display: inline-block;
+  margin-top: 2.8vh;
+  padding: 12px 30px;
+  border: 1px solid rgba(255, 230, 190, 0.7);
+  border-radius: 999px;
+  color: #fff3dc;
+  font-size: 13px;
+  letter-spacing: 0.3em;
+  text-decoration: none;
+  background: rgba(0, 0, 0, 0.35);
+}
+.ab-go:hover {
+  background: rgba(255, 214, 140, 0.12);
+}
+
+/* ---------- "scroll", a few seconds after opening (and again under the letter) ---------- */
+.ab-cue {
+  position: absolute;
+  left: 50%;
+  bottom: max(22px, 4vh);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.ab-cue span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  animation: ab-cue-in 1.2s ease-out 3.8s forwards;
+}
+.ab-cue i {
+  display: block;
+  width: 11px;
+  height: 11px;
+  border-right: 1px solid var(--ab-dim);
+  border-bottom: 1px solid var(--ab-dim);
+  transform: rotate(45deg);
+  animation: ab-bob 2.2s ease-in-out 3.8s infinite;
+}
+.ab-cue em {
+  font-style: normal;
+  font-family: "Avenir Next", var(--font-sans);
+  font-size: 10px;
+  letter-spacing: 0.42em;
+  padding-left: 0.42em;
+  color: var(--ab-dim);
+  text-transform: uppercase;
+}
+@keyframes ab-cue-in {
+  to {
+    opacity: 1;
+  }
+}
+@keyframes ab-bob {
+  0%,
+  100% {
+    translate: 0 -2px;
+  }
+  50% {
+    translate: 0 5px;
+  }
+}
+.ab-cue-again span {
+  animation: none;
+  opacity: 1;
+}
+.ab-cue-again {
+  bottom: max(8px, 1.6vh);
+  opacity: 0;
+  transition: opacity 0.6s;
+}
+.ab-cue-again[data-on] {
+  opacity: 1;
+  transition: opacity 0.8s 1.4s;
+}
+
+/* Back to the app, from anywhere in the story (where the app has its settings gear). */
+.ab-back {
+  position: fixed;
+  left: calc(16px + env(safe-area-inset-left));
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px 7px 11px;
+  border: 1px solid rgba(238, 242, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(2, 3, 10, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: rgba(238, 242, 255, 0.7);
+  font-size: 11.5px;
+  letter-spacing: 0.12em;
+  text-decoration: none;
+  opacity: 0;
+  animation: ab-cue-in 1.2s ease-out 2.6s forwards; /* after the opening words */
+  transition: color 200ms ease, border-color 200ms ease;
+}
+.ab[data-leaving] .ab-back {
+  animation: none;
+  opacity: 0;
+}
+.ab-back:hover {
+  color: #eef2ff;
+  border-color: rgba(238, 242, 255, 0.4);
+}
+
+.ab-footer {
+  position: relative;
+  padding: 0 16px calc(56px + env(safe-area-inset-bottom));
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px 30px;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+}
+.ab-footer a {
+  color: var(--ab-dim);
+  text-decoration: none;
+}
+.ab-footer a:hover {
+  color: var(--ab-text);
+}
+
+@media (max-width: 640px) {
+  .ab-hero h1 {
+    font-size: min(25px, 5.9vw); /* the second line fits on one line on a 375px phone */
+    letter-spacing: 0.1em;
+  }
+  .ab-say h2 {
+    letter-spacing: 0.08em;
+  }
+  .ab-pairs {
+    margin-top: 3vh;
+  }
+  .ab-pairs > div {
+    --pt: 11px;
+    --fs: 13.5px;
+    letter-spacing: 0.02em;
+  }
+  .ab-pairs small {
+    font-size: 10.5px;
+    letter-spacing: 0;
+  }
+  .ab-pairs h3 {
+    letter-spacing: 0.2em;
+  }
+  .ab-after {
+    margin-top: 3.5vh;
+  }
+}
