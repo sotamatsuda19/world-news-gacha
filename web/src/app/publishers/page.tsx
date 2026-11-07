@@ -98,7 +98,7 @@ function En() {
 
       <h2>If you would rather not appear</h2>
       <p>
-        Please tell us your newspaper’s name through the {contact("contact page")}, and we will leave it out from the next update. The same place is open for anything about how we show your headlines, photos or summaries.
+        Please tell us your newspaper’s name through the {contact("contact form")}, and we will leave it out from the next update. The same place is open for anything about how we show your headlines, photos or summaries.
       </p>
       <p>This service carries no ads and makes no money. We hope it can be a small way for people far away to learn about a small town’s today.</p>
       <p className="info-note">Last updated: 6 November 2026</p>

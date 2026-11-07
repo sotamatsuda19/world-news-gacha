@@ -79,7 +79,8 @@ function Ja() {
 
       <h2>お問い合わせ</h2>
       <p>ご質問や、誤りのご指摘は{contact("お問い合わせ")}からどうぞ。</p>
-      <p className="info-note">最終更新: 2026年11月6日</p>
+      <p>お問い合わせは Google フォームで受け付けています。メールアドレスの入力は任意で、いただいた場合も、そのお問い合わせへの返信にだけ使います。</p>
+      <p className="info-note">最終更新: 2026年11月7日</p>
     </>
   );
 }
@@ -136,8 +137,9 @@ function En() {
       </p>
 
       <h2>Contact</h2>
-      <p>For questions or corrections, please use the {contact("contact page")}.</p>
-      <p className="info-note">Last updated: 6 November 2026</p>
+      <p>For questions or corrections, please use the {contact("contact form")}.</p>
+      <p>The form is a Google Form. Leaving an email address is optional, and if you do, we use it only to reply to you.</p>
+      <p className="info-note">Last updated: 7 November 2026</p>
     </>
   );
 }
