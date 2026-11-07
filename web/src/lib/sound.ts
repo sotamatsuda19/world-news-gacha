@@ -4,7 +4,7 @@
 // volume knob…) are connected into a graph that ends at the speakers. Here:
 //
 //   wind:     looping noise ─▶ band-pass filter ─▶ gain ─┐
-//   landing:  synthesized thump + bell (made per use) ───┼─▶ master gain ─▶ speakers
+//   landing:  synthesized thump + bell (made per use) ───┼─▶ master gain ─▶ limiter ─▶ speakers
 //   paper:    decoded MP3 files (public/sounds/) ────────┘
 //
 // The spin and landing are synthesized: the wind has to follow the globe's speed
@@ -44,7 +44,15 @@ export function unlockAudio() {
     ctx = new AudioContext();
     master = ctx.createGain();
     master.gain.value = enabled ? 1 : 0;
-    master.connect(ctx.destination);
+    // A limiter at the end: when two sounds overlap (the bell over the wind, say),
+    // their peaks are held down instead of crackling. Quieter sounds pass untouched.
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -6;
+    limiter.knee.value = 4;
+    limiter.ratio.value = 12;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.15;
+    master.connect(limiter).connect(ctx.destination);
     noise = makeNoise(ctx, 2);
     void loadSamples(ctx);
   }
@@ -172,15 +180,48 @@ export function playLanding() {
   thump.start(t);
   thump.stop(t + 0.6);
 
+  // A phone's speaker can't play much below 200 Hz, so on a phone the thump above is
+  // nearly silent. Two layers it can play carry the "don" there (with earphones,
+  // the low thump is still under them):
+  // the same fall an octave up (300 → 90 Hz)...
+  const body = audio.createOscillator();
+  body.type = "triangle";
+  body.frequency.setValueAtTime(300, t);
+  body.frequency.exponentialRampToValueAtTime(90, t + 0.25);
+  const bodyGain = audio.createGain();
+  bodyGain.gain.setValueAtTime(0.0001, t);
+  bodyGain.gain.exponentialRampToValueAtTime(0.38, t + 0.006);
+  bodyGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+  body.connect(bodyGain).connect(out);
+  body.start(t);
+  body.stop(t + 0.35);
+  // ...and a short knock of noise around 1.2 kHz, the moment of contact.
+  if (noise) {
+    const knock = audio.createBufferSource();
+    knock.buffer = noise;
+    const band = audio.createBiquadFilter();
+    band.type = "bandpass";
+    band.frequency.value = 1200;
+    band.Q.value = 1.1;
+    const knockGain = audio.createGain();
+    knockGain.gain.setValueAtTime(0.0001, t);
+    knockGain.gain.exponentialRampToValueAtTime(0.5, t + 0.003);
+    knockGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
+    knock.connect(band).connect(knockGain).connect(out);
+    knock.start(t, Math.random());
+    knock.stop(t + 0.06);
+  }
+
   // Bell: two notes (E6, B6), each a pure tone plus a quieter, slightly "off"
   // overtone (×2.76), which is what makes metal sound like metal.
   [
     { freq: 1318.5, at: 0.02 },
     { freq: 1975.5, at: 0.11 },
   ].forEach(({ freq, at }) => {
+    // (Levels set to sit with the paper sounds, which peak around 0.4–0.65.)
     for (const [ratio, level] of [
-      [1, 0.09],
-      [2.76, 0.025],
+      [1, 0.3],
+      [2.76, 0.08],
     ]) {
       const osc = audio.createOscillator();
       osc.type = "sine";

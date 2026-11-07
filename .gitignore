@@ -7,11 +7,11 @@ direction.md
 functionality.md
 future_ideas.md
 media_list.md
-media/
+/media/
 01_research_*
 02_requirements.md
 sound_candidates.md
 sounds-original/
 
-# Throwaway design drafts for the about page (2026-11-06)
-about-*/
+# Throwaway design drafts for the about page (2026-11-06), all in one folder
+/about-drafts/

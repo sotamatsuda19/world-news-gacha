@@ -1,0 +1,81 @@
+<!doctype html>
+<!-- Stack draft 1: m1's four columns (browser → Vercel → storage and collection →
+     outside), cut down to an icon, a name and what each part is built with. -->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="stack.css" />
+  </head>
+  <body>
+    <script>document.body.className = location.hash.slice(1);</script>
+    <svg id="wires"></svg>
+
+    <div class="node row" id="ui" style="left: 40px; top: 186px; width: 320px">
+      <span class="icon" data-icon="earth"></span>
+      <div><b>画面</b><div class="sub">React 19 · globe.gl<br />WebGL2 · Web Audio</div></div>
+    </div>
+    <div class="node row" id="ls" style="left: 40px; top: 606px; width: 320px">
+      <span class="icon" data-icon="storage"></span>
+      <div><b>localStorage</b><div class="sub">Web Storage · zod</div></div>
+    </div>
+
+    <div class="node row" id="draw" style="left: 440px; top: 196px; width: 330px">
+      <span class="icon" data-icon="die"></span>
+      <div><b>/api/draw</b><div class="sub">Next.js Route Handler</div></div>
+    </div>
+    <div class="node row" id="pages" style="left: 440px; top: 401px; width: 330px">
+      <span class="icon" data-icon="page"></span>
+      <div><b>ページ</b><div class="sub">Next.js 16 App Router</div></div>
+    </div>
+    <div class="node row" id="summary" style="left: 440px; top: 606px; width: 330px">
+      <span class="icon" data-icon="text"></span>
+      <div><b>/api/summary</b><div class="sub">Route Handler · SSE</div></div>
+    </div>
+
+    <div class="node row" id="blob" style="left: 870px; top: 196px; width: 310px">
+      <span class="icon" data-icon="vercel"></span>
+      <div><b>Vercel Blob</b><div class="sub">@vercel/blob · JSON</div></div>
+    </div>
+    <div class="node row" id="actions" style="left: 870px; top: 401px; width: 310px">
+      <span class="icon" data-icon="githubactions"></span>
+      <div><b>GitHub Actions</b><div class="sub">cron · Node.js 24 · tsx</div></div>
+    </div>
+    <div class="node row" id="redis" style="left: 870px; top: 606px; width: 310px">
+      <span class="icon" data-icon="upstash"></span>
+      <div><b>Upstash Redis</b><div class="sub">@upstash/redis</div></div>
+    </div>
+
+    <div class="node row" id="news" style="left: 1240px; top: 196px; width: 330px">
+      <span class="icon" data-icon="news"></span>
+      <div><b>ニュースサイト</b><div class="sub">RSS · sitemap · robots.txt</div></div>
+    </div>
+    <div class="node row" id="wiki" style="left: 1240px; top: 401px; width: 330px">
+      <span class="icon" data-icon="wikimediacommons"></span>
+      <div><b>Wikimedia Commons</b><div class="sub">MediaWiki API</div></div>
+    </div>
+    <div class="node row" id="claude" style="left: 1240px; top: 606px; width: 330px">
+      <span class="icon" data-icon="claude"></span>
+      <div><b>Claude API</b><div class="sub">Haiku 5.5 · Anthropic SDK</div></div>
+    </div>
+
+    <script src="diagram.js"></script>
+    <script>
+      const { wire } = Diagram;
+      const ink = { color: "#111", glow: false, width: 1.5, opacity: 1 };
+      wire("#ui", "#draw", { ...ink, fromAlong: -0.15, bend: 40 });
+      wire("#ui", "#pages", { ...ink, fromAlong: 0.1, bend: 60 });
+      wire("#ui", "#summary", { ...ink, fromAlong: 0.3, bend: 60 });
+      wire("#ui", "#ls", { ...ink, from: "bottom", to: "top" });
+      wire("#draw", "#blob", { ...ink, bend: 30 });
+      wire("#pages", "#blob", { ...ink, toAlong: 0.3, bend: 50 });
+      wire("#summary", "#redis", { ...ink, bend: 30 });
+      wire("#actions", "#blob", { ...ink, from: "top", to: "bottom" });
+      wire("#actions", "#news", { ...ink, fromAlong: -0.25, bend: 50 });
+      wire("#actions", "#wiki", { ...ink, bend: 30 });
+      wire("#actions", "#claude", { ...ink, fromAlong: 0.25, bend: 50 });
+      wire("#summary", "#claude", { ...ink, from: "bottom", to: "bottom", fromAlong: 0.2, toAlong: -0.1, bend: 120 });
+    </script>
+    <script src="earth-gl.js"></script>
+    <script src="stack.js"></script>
+  </body>
+</html>

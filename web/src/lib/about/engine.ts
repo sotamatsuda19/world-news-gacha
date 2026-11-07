@@ -1,3 +1,4 @@
+import { createEarthGL, EARTH_TEXTURE } from "../earth-gl";
 import type { AboutLight } from "./data";
 
 // The moving part of the about page: one canvas that draws the Earth, its town lights,
@@ -14,8 +15,8 @@ import type { AboutLight } from "./data";
 // town it flies to, so a far-south town is reached by swinging round, not by sliding
 // the whole Earth up the screen.
 //
-// The Earth is drawn by WebGL2 at the screen's own resolution (smooth when close);
-// without WebGL2 it falls back to a plain shaded disc.
+// The Earth is drawn by WebGL2 at the screen's own resolution (smooth when close,
+// lib/earth-gl.ts); without WebGL2 it falls back to a plain shaded disc.
 
 const D = Math.PI / 180;
 const clamp = (x: number, a = 0, b = 1) => Math.min(b, Math.max(a, x));
@@ -27,7 +28,6 @@ const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t 
 const easeExpo = (t: number) => (t >= 1 ? 1 : 1 - Math.pow(2, -10 * t));
 const gauss = () => (Math.random() + Math.random() + Math.random() + Math.random() - 2) / 2;
 
-const TEXTURE = "/textures/earth-2k.jpg";
 const SPACE = "#02030a"; // the app's background, so moving between the pages is seamless
 const TILT = 22; // the camera's usual latitude
 const LEAVE_MS = 900;
@@ -154,76 +154,9 @@ export function startStory(opts: StoryOptions): Story {
     return { lat: Math.asin(clamp(v[2], -1, 1)) / D, lng: Math.atan2(v[1], v[0]) / D };
   }
 
-  // ---------- The Earth (WebGL2) ----------
-  const glc = document.createElement("canvas");
-  const gl = glc.getContext("webgl2", { premultipliedAlpha: true, preserveDrawingBuffer: true, antialias: false });
-  type Uniforms = Record<"C" | "R" | "L0" | "TL" | "SD" | "CD" | "SL" | "GN" | "HH", WebGLUniformLocation | null>;
-  let U: Uniforms | null = null;
-  let texReady = false;
-  if (gl) {
-    const sh = (type: number, src: string) => {
-      const o = gl.createShader(type)!;
-      gl.shaderSource(o, src);
-      gl.compileShader(o);
-      if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o) ?? "shader");
-      return o;
-    };
-    const pr = gl.createProgram()!;
-    gl.attachShader(pr, sh(gl.VERTEX_SHADER, `#version 300 es
-      in vec2 a; void main() { gl_Position = vec4(a, 0.0, 1.0); }`));
-    // For each screen pixel inside the disc: which latitude/longitude it shows, the
-    // texture there (smoothly sampled), lit by a sun so the far side is night.
-    gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, `#version 300 es
-      precision highp float;
-      uniform sampler2D T; uniform vec2 C; uniform float R, L0, TL, SD, CD, SL, GN, HH;
-      out vec4 o;
-      const float PI = 3.14159265;
-      void main() {
-        vec2 fc = vec2(gl_FragCoord.x, HH - gl_FragCoord.y);
-        float nx = (fc.x - C.x) / R, ny = -(fc.y - C.y) / R, r2 = nx * nx + ny * ny;
-        if (r2 > 1.0) { o = vec4(0.0); return; }
-        float rho = sqrt(r2), cosc = sqrt(1.0 - r2), sp = sin(TL), cp = cos(TL);
-        float lat = asin(clamp(cosc * sp + ny * cp, -1.0, 1.0));
-        float lon = atan(nx, cosc * cp - ny * sp) + L0;
-        vec2 uv = vec2(fract((lon + PI) / (2.0 * PI)), (0.5 * PI - lat) / PI);
-        // At longitude 180 the texture wraps; take the slope from whichever copy is continuous there.
-        vec2 uv2 = vec2(fract(uv.x + 0.5) - 0.5, uv.y);
-        bool a = fwidth(uv.x) <= fwidth(uv2.x);
-        vec4 t = textureGrad(T, uv, a ? dFdx(uv) : dFdx(uv2), a ? dFdy(uv) : dFdy(uv2));
-        float view = 0.16 + max(0.0, dot(vec3(nx, ny, cosc), vec3(-0.55, 0.42, 0.72))) + 0.12 * cosc;
-        float c = sin(lat) * SD + cos(lat) * CD * cos(lon - SL);
-        float s = (0.07 + 1.05 * clamp((c + 0.08) / 0.22, 0.0, 1.0)) * (0.55 + 0.45 * view) * GN;
-        vec3 col = t.rgb * s; col.b = col.b * 1.04 + 4.0 / 255.0;
-        float al = clamp((1.0 - rho) * R * 0.9, 0.0, 1.0);
-        o = vec4(min(col, vec3(1.0)) * al, al);
-      }`));
-    gl.linkProgram(pr);
-    gl.useProgram(pr);
-    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-    const loc = gl.getAttribLocation(pr, "a");
-    gl.enableVertexAttribArray(loc);
-    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-    U = Object.fromEntries(
-      (["C", "R", "L0", "TL", "SD", "CD", "SL", "GN", "HH"] as const).map((k) => [k, gl.getUniformLocation(pr, k)]),
-    ) as Uniforms;
-  }
-  function drawEarth(cx: number, cy: number, r: number, lon: number, sun: LatLng) {
-    if (!gl || !U || !texReady || !glc.width || !glc.height) return false;
-    gl.uniform2f(U.C, cx, cy);
-    gl.uniform1f(U.R, r);
-    gl.uniform1f(U.L0, lon * D);
-    gl.uniform1f(U.TL, tiltNow * D);
-    gl.uniform1f(U.SD, Math.sin(sun.lat * D));
-    gl.uniform1f(U.CD, Math.cos(sun.lat * D));
-    gl.uniform1f(U.SL, sun.lng * D);
-    gl.uniform1f(U.GN, 1.05);
-    gl.uniform1f(U.HH, glc.height);
-    gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
-    return true;
-  }
+  // ---------- The Earth (WebGL2, lib/earth-gl.ts) ----------
+  const earth = createEarthGL();
+  const drawEarth = (cx: number, cy: number, r: number, lon: number, sun: LatLng) => earth.draw(cx, cy, r, lon, tiltNow, sun);
 
   // Night-side town lights: random points on land, found from the texture's colours.
   const night: { lat: number; lng: number; a: number }[] = [];
@@ -247,20 +180,9 @@ export function startStory(opts: StoryOptions): Story {
         lng = Math.random() * 360 - 180;
       if (lat > -56 && isLand(lat, lng)) night.push({ lat, lng, a: 0.15 + Math.random() * 0.5 });
     }
-    if (gl) {
-      gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-      gl.generateMipmap(gl.TEXTURE_2D);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      const an = gl.getExtension("EXT_texture_filter_anisotropic");
-      if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
-      texReady = true;
-    }
+    earth.setTexture(img);
   };
-  img.src = TEXTURE;
+  img.src = EARTH_TEXTURE;
 
   // ---------- Size ----------
   let W = 0,
@@ -275,11 +197,7 @@ export function startStory(opts: StoryOptions): Story {
     el.canvas.width = Math.floor(W * DPR);
     el.canvas.height = Math.floor(H * DPR);
     g.setTransform(DPR, 0, 0, DPR, 0, 0);
-    if (gl) {
-      glc.width = el.canvas.width;
-      glc.height = el.canvas.height;
-      gl.viewport(0, 0, glc.width, glc.height);
-    }
+    earth.resize(el.canvas.width, el.canvas.height);
     R2 = Math.min(W, H) * (W < 640 ? 0.4 : 0.31);
     ZMIN = W < 640 ? 1.75 : 1.62; // a wide screen starts with a smaller Earth, so goes a little closer
   }
@@ -408,7 +326,7 @@ export function startStory(opts: StoryOptions): Story {
     const R = R2 * Math.exp((2 - A) * 2.75),
       lon = f.lng;
     const w = easeInOut(seg(A, ZMIN, 2)); // 1 = whole Earth, 0 = closest
-    setTilt(gl ? lerp(TILT, f.lat, 1 - w) : TILT);
+    setTilt(earth.supported ? lerp(TILT, f.lat, 1 - w) : TILT);
     const [fx, fy] = proj(f.lat, f.lng, lon);
     const inDraw = (p > 0.335 && p < 0.62) || replay.on;
     const fadeBack = replay.on ? 1 : 1 - seg(p, 0.585, 0.62);
@@ -438,7 +356,7 @@ export function startStory(opts: StoryOptions): Story {
     g.arc(Cx, Cy, R * 1.07, 0, 7);
     g.fill();
     const sun = { lat: 8, lng: lon - 72 }; // day in the middle, night towards the left (town lights)
-    if (drawEarth(Cx * DPR, Cy * DPR, R * DPR, lon, sun)) g.drawImage(glc, 0, 0, W, H);
+    if (drawEarth(Cx * DPR, Cy * DPR, R * DPR, lon, sun)) g.drawImage(earth.canvas, 0, 0, W, H);
     else {
       // No WebGL2 (or the texture is still loading): a plain shaded disc.
       const disc = g.createRadialGradient(Cx - R * 0.35, Cy - R * 0.35, R * 0.1, Cx, Cy, R);
@@ -810,7 +728,7 @@ export function startStory(opts: StoryOptions): Story {
       ro.disconnect();
       document.removeEventListener("visibilitychange", update);
       img.onload = null;
-      gl?.getExtension("WEBGL_lose_context")?.loseContext(); // give the GPU memory back now
+      earth.dispose();
     },
   };
 }

@@ -1,0 +1,108 @@
+/* The tech-stack diagrams (s-*.html): black and white, blocks and arrows only.
+   Each block is an icon, a name, and one line saying what it is built with. */
+:root {
+  --ink: #111;
+  --soft: #5a5a5a;
+  --sans: "Hiragino Sans", "Hiragino Kaku Gothic ProN", system-ui, sans-serif;
+  --mono: "SF Mono", Menlo, monospace;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  width: 1600px;
+  height: 900px;
+  overflow: hidden;
+  background: #fff;
+  color: var(--ink);
+  font-family: var(--sans);
+}
+#wires {
+  position: absolute;
+  inset: 0;
+  width: 1600px;
+  height: 900px;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 2;
+}
+.node {
+  position: absolute;
+  z-index: 1;
+  background: #fff;
+  border: 1.5px solid var(--ink);
+  border-radius: 8px;
+}
+.node b {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.node .sub {
+  margin-top: 5px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--soft);
+}
+.icon {
+  flex: none;
+  display: block;
+}
+.icon svg,
+.icon img,
+.icon canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* s1: a card, the icon on the left */
+.node.row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+}
+.node.row .icon {
+  width: 30px;
+  height: 30px;
+}
+
+/* s2: a tile, the icon above */
+.node.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 18px 16px 16px;
+}
+.node.tile .icon {
+  width: 36px;
+  height: 36px;
+  margin-bottom: 10px;
+}
+
+/* Fonts: s1-stack.html#f3 is the README's diagram. Without "#f3" it falls back to Hiragino + SF Mono. */
+.node b {
+  font-family: var(--title-font, var(--sans));
+}
+.node .sub {
+  font-family: var(--sub-font, var(--mono));
+}
+/* f3: a round gothic, Avenir Next for the Latin names and the stack */
+body.f3 {
+  --title-font: "Avenir Next", "Tsukushi A Round Gothic", "筑紫A丸ゴシック", sans-serif;
+  --sub-font: "Avenir Next", "Tsukushi A Round Gothic", sans-serif;
+}
+body.f3 .node b {
+  font-weight: 600;
+  font-size: 19px;
+}
+body.f3 .node .sub {
+  font-size: 13.5px;
+  letter-spacing: 0.02em;
+}
